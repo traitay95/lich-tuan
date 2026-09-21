@@ -16,15 +16,32 @@ SENDER_EMAIL = "traitay95@gmail.com"  # Email gửi
 SENDER_PASSWORD = "wtgm paga vpze bfzm"  # Mật khẩu ứng dụng 16 ký tự
 
 # ---------------------------------------------------------
+# Cấu hình Firebase Key Nhúng Trực Tiếp
+# ---------------------------------------------------------
+FIREBASE_CREDENTIALS = {
+  "type": "service_account",
+  "project_id": "lichtuan-2b316",
+  "private_key_id": "79ea12471bfabef4ec591741e3042836ad51ac96",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDz5FERafP3/x9c\n0MbX92XgZvffjweTOfCi58x+Y07/e5rvao+Ikm1LauaNrJ3uWWLQX8XJF18BJmBV\nT2uJq58x7q9zQFQoVZbhg7amzPFP+5DFk7UiJkPDPNNejMVotHEuutMLCrTdSfv5\nf8QNI4c/8CtCz6/hIzvJTTZEkMWWGds2Z+kx6JbkO+0Wewvpkq3UUswD6vQS79mN\njz/atpKehQEe6i6qACcNtQZFzn+Aq+rrF18V9KyT/iPts3XGcIw3Bvbzv8kTDsd4\nptBzkgtJGnpFaZBzu5u/1TytXkQMNqK5U9JGewse2VVYVSFXQIN0JbXoqph03yAD\n7IUMbXpHAgMBAAECggEAcu7RVUd89Q2BFhg83GF13P4pKW0ZwMO5JsvdjmH2RGdX\naCPraAy4/KVv6KvD8SKmclPvvQgKeVxAYXN/1ezOpJU6kTFrd2Z+J+AOHyTNQ0fl\nvXYSEfm+TS9I3HGyRdlizQa1laqB+RZ4a+dN2HM5tWPUvzNoSsxzzDVasY0Xz9eL\n8BTcdlm5LcZFdXEpXqbTKoLkdEINw0TGCYyXQryQ+9NS7F92DxIBnO2o1M7y+QCx\nc6qVcPdHtCo3BB7xBle4Phq+7qzbw8owRavWj0r5P0FxcRRsTgLSzf/CTMbHEVk/\nFu+eD58/Gkmsk+rfXKaLmGRbn8HB2Q8o0tfq+XChwQKBgQD+KYgI0lRJcCuMvFoN\nTyhIl2u7VYOLGfsY7igPm2GYN/+uO54Da5FHeK0LRN4JDEZGB6VTvNAxD4IDWwuW\n/x8Mp+0tVMNyXn4FE4o0hT/sauJsdjZv5kAo/RlO1V/2YJvwxt7/Zh0MDT9Kme74\nv3wwB7NCGXSp9tym/2mSEzQeyQKBgQD1p8Y1ff+qqPPvQhobndQ/oKcl+YPw3oro\nF7SiivaEoD5QNGlLDY9k4SGHiGr6JunZ5wasykQTLd1ZLzyiF4RwKMnnyBFwZWe2\nGFqcCaD+uJjuUrck6LxUFZIM1yfRAGHlChuGhhJYHSq2YX/k00RGK36FahsHTY9W\nni9Y0YoIjwKBgAJaoh7qy8sOVejsyay74fSiKmZGyXwdVn0Jn6ddWg8N3blgZftE\nIMlXrcqf7aqJyZDWe0qGQitiKGMdkcLpRAFbANBdq53AkEw9vRb1cP0glE5K3gA1\nUrzOc1COm1/tzyPww5n7+SLmcIKhYFw/ccgEGj3vfGwilDKbxP+MW/w5AoGBANA7\nXG/Bk3QVbVlVng3k1qLsymMNQ8Ns0TB1z7+srdS0hL21/78ICpIHqEVb5NqRG8+C\n3wyfE99yFFxiBzKbXr84RBX+aJHu01/u+vejzd29mp0Cbo6R3fokor3Rr8WhXlop\nHDYG9gvNBYS91wyf7RLSEZiD3c9t9mAFDLtsO2aPAoGBAKKAUbKzQrjkU44nskWG\nZeLQc/oD3u81vIuZGeaFQ6QUuh6L1AT7Qnchtk/rOPwmL9InezM2zN+l3Ud3RuzA\njFrSl8bBXnhBL776Ixt1W4T0HND/y2c9m6YcEDPFeABkAqVfSK8yg8sifPvthA8C\nlGVpZs3EIF/onAHG7uM8D38i\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@lichtuan-2b316.iam.gserviceaccount.com",
+  "client_id": "112928288504526035507",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40lichtuan-2b316.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
+
+# ---------------------------------------------------------
 # 1. Khởi tạo kết nối Firebase
 # ---------------------------------------------------------
 if not firebase_admin._apps:
     try:
-        if "textkey" in st.secrets:
-            key_dict = dict(st.secrets["textkey"])
-            cred = credentials.Certificate(key_dict)
-        else:
-            cred = credentials.Certificate("firebase_key.json")
+        # Xử lý chuẩn hóa xuống dòng cho private_key
+        if "private_key" in FIREBASE_CREDENTIALS:
+            FIREBASE_CREDENTIALS["private_key"] = FIREBASE_CREDENTIALS["private_key"].replace("\\n", "\n")
+        
+        cred = credentials.Certificate(FIREBASE_CREDENTIALS)
         firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"Lỗi khởi tạo Firebase: {e}")
@@ -130,25 +147,24 @@ st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout=
 current_year = datetime.now().year
 
 
-@st.cache_resource(ttl=3600)
+# ---------------------------------------------------------
+# Tối ưu xóa lịch các năm cũ
+# ---------------------------------------------------------
+@st.cache_resource(ttl=86400)
 def auto_delete_old_year_schedules():
     try:
-        # Tạo mốc ngày đầu tiên của năm hiện tại (ví dụ: '2026-01-01')
         first_day_of_current_year = f"{current_year}-01-01"
-        
-        # Lọc trực tiếp trên Firestore: chỉ lấy các bản ghi có ngày nhỏ hơn đầu năm nay
         old_docs_query = db.collection("schedules").where("ngay", "<", first_day_of_current_year)
         docs = old_docs_query.stream()
-        
         deleted_count = 0
         for doc in docs:
             doc.reference.delete()
             deleted_count += 1
-            
         return deleted_count
     except Exception as e:
         print(f"Lỗi khi xóa lịch cũ: {e}")
         return 0
+
 
 auto_delete_old_year_schedules()
 
@@ -296,7 +312,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: BẢNG LỊCH THEO TUẦN (ĐƠN GIẢN - KHÔNG TÔ MÀU CANH BÁO)
+# TAB 1: BẢNG LỊCH THEO TUẦN
 # =========================================================
 with tab1:
     col_w1, col_w2 = st.columns([1, 2])
@@ -336,7 +352,6 @@ with tab1:
                         badge = "🔴" if task['trang_thai'] == 'Hủy' else (
                             "🟢" if task['trang_thai'] == 'Chính thức' else "🟡")
 
-                        # Khung thẻ lịch tiêu chuẩn không chứa hiệu ứng tô màu
                         with st.container(border=True):
                             st.markdown(f"⏰ **{task['gio_bat_dau']} - {task['gio_ket_thuc']}**")
                             st.markdown(f"**{task['title']}**")
