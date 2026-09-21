@@ -38,15 +38,28 @@ FIREBASE_CREDENTIALS = {
 # 2. Khởi tạo Firestore bằng REST Transport (Khắc phục treo Streamlit Cloud)
 # ---------------------------------------------------------
 @st.cache_resource
+from google.oauth2 import service_account
+
+# ---------------------------------------------------------
+# 2. Khởi tạo Firestore bằng REST Transport (Sửa lỗi TypeError)
+# ---------------------------------------------------------
+@st.cache_resource
 def init_firestore():
     cred_dict = dict(FIREBASE_CREDENTIALS)
     cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-    cred = credentials.Certificate(cred_dict)
     
-    # Ép dùng transport='rest' để tránh kẹt gRPC socket trên Linux/Cloud
+    # 1. Khởi tạo Firebase Admin SDK (nếu chưa khởi tạo)
+    if not firebase_admin._apps:
+        cred_admin = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred_admin)
+    
+    # 2. Khởi tạo Google Cloud Service Account Credentials chuẩn cho Firestore Client
+    scoped_credentials = service_account.Credentials.from_service_account_info(cred_dict)
+    
+    # 3. Ép dùng transport='rest' để tránh kẹt socket/gRPC trên Streamlit Cloud
     return firestore.Client(
         project=cred_dict["project_id"],
-        credentials=cred.get_credential(),
+        credentials=scoped_credentials,
         transport="rest"
     )
 
