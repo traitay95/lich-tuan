@@ -1,6 +1,4 @@
 import streamlit as st
-import firebase_admin
-from firebase_admin import credentials
 from google.cloud import firestore
 from google.oauth2 import service_account
 from datetime import datetime, time, timedelta
@@ -16,7 +14,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout="wide", page_icon="📅")
 
 # ---------------------------------------------------------
-# Cấu hình Email SMTP & Firebase Credentials
+# Cấu hình Email SMTP & Firebase Credentials Fallback
 # ---------------------------------------------------------
 SENDER_EMAIL = "traitay95@gmail.com"
 SENDER_PASSWORD = "wtgm paga vpze bfzm"
@@ -36,22 +34,23 @@ FIREBASE_CREDENTIALS = {
 }
 
 # ---------------------------------------------------------
-# 2. Khởi tạo Firestore bằng REST Transport (Chống treo vĩnh viễn)
-# ---------------------------------------------------------
-@st.cache_resource
-# Khởi tạo Firestore sử dụng st.secrets
+# 2. Khởi tạo Firestore bằng google-cloud-firestore chuẩn
 # ---------------------------------------------------------
 @st.cache_resource
 def init_firestore():
-    # Đọc credentials từ file secrets / Streamlit Cloud Secrets
-    cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS"])
+    # Ưu tiên lấy từ st.secrets, nếu không có sẽ lấy từ biến gán trực tiếp
+    if "FIREBASE_CREDENTIALS" in st.secrets:
+        cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS"])
+    else:
+        cred_dict = dict(FIREBASE_CREDENTIALS)
+
     cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+    credentials = service_account.Credentials.from_service_account_info(cred_dict)
     
-    if not firebase_admin._apps:
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-        
-    return firestore.client()
+    return firestore.Client(
+        project=cred_dict["project_id"],
+        credentials=credentials
+    )
 
 db = init_firestore()
 
