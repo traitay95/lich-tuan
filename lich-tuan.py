@@ -25,10 +25,9 @@ if not firebase_admin._apps:
             cred = credentials.Certificate(key_dict)
         else:
             cred = credentials.Certificate("firebase_key.json")
-    except Exception:
-        cred = credentials.Certificate("firebase_key.json")
-
-    firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Lỗi khởi tạo Firebase: {e}")
 
 db = firestore.client()
 
