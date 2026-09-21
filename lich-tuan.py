@@ -17,7 +17,7 @@ st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout=
 # Cấu hình MongoDB Atlas & SMTP Email
 # ---------------------------------------------------------
 # Điền chuỗi MongoDB Connection String của bạn vào đây hoặc trong .streamlit/secrets.toml
-MONGO_URI = st.secrets.get("mongodb+srv://traitay95_db_user:1234@cluster0.nd45jpu.mongodb.net/?appName=Cluster0")
+MONGO_URI = st.secrets.get("mongodb+srv://traitay95_db_user:1234@cluster0.nd45jpu.mongodb.net/pkh_schedule_db?retryWrites=true&w=majority&appName=Cluster0")
 DB_NAME = "pkh_schedule_db"
 
 SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
