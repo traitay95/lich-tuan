@@ -44,6 +44,12 @@ from google.oauth2 import service_account
 # 2. Khởi tạo Firestore bằng REST Transport (Sửa lỗi TypeError)
 # ---------------------------------------------------------
 @st.cache_resource
+from google.oauth2 import service_account
+
+# ---------------------------------------------------------
+# 2. Khởi tạo Firestore bằng REST Transport (Sửa lỗi TypeError)
+# ---------------------------------------------------------
+@st.cache_resource
 def init_firestore():
     cred_dict = dict(FIREBASE_CREDENTIALS)
     cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
