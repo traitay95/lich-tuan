@@ -133,20 +133,22 @@ current_year = datetime.now().year
 @st.cache_resource(ttl=3600)
 def auto_delete_old_year_schedules():
     try:
-        schedules_ref = db.collection("schedules")
-        docs = schedules_ref.stream()
+        # Tạo mốc ngày đầu tiên của năm hiện tại (ví dụ: '2026-01-01')
+        first_day_of_current_year = f"{current_year}-01-01"
+        
+        # Lọc trực tiếp trên Firestore: chỉ lấy các bản ghi có ngày nhỏ hơn đầu năm nay
+        old_docs_query = db.collection("schedules").where("ngay", "<", first_day_of_current_year)
+        docs = old_docs_query.stream()
+        
         deleted_count = 0
         for doc in docs:
-            data = doc.to_dict()
-            if "ngay" in data and data["ngay"]:
-                task_year = int(data["ngay"].split("-")[0])
-                if task_year < current_year:
-                    db.collection("schedules").document(doc.id).delete()
-                    deleted_count += 1
+            doc.reference.delete()
+            deleted_count += 1
+            
         return deleted_count
     except Exception as e:
+        print(f"Lỗi khi xóa lịch cũ: {e}")
         return 0
-
 
 auto_delete_old_year_schedules()
 
