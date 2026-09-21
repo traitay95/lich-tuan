@@ -39,21 +39,19 @@ FIREBASE_CREDENTIALS = {
 # 2. Khởi tạo Firestore bằng REST Transport (Chống treo vĩnh viễn)
 # ---------------------------------------------------------
 @st.cache_resource
+# Khởi tạo Firestore sử dụng st.secrets
+# ---------------------------------------------------------
+@st.cache_resource
 def init_firestore():
-    cred_dict = dict(FIREBASE_CREDENTIALS)
+    # Đọc credentials từ file secrets / Streamlit Cloud Secrets
+    cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS"])
     cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
     
     if not firebase_admin._apps:
-        cred_admin = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred_admin)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
         
-    scoped_credentials = service_account.Credentials.from_service_account_info(cred_dict)
-    
-    return firestore.Client(
-        project=cred_dict["project_id"],
-        credentials=scoped_credentials,
-        transport="rest"
-    )
+    return firestore.client()
 
 db = init_firestore()
 
