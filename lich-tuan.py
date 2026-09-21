@@ -9,42 +9,52 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # =========================================================
-# ⚙️ CẤU HÌNH CÔNG KHAI - KHÔNG CẦN BẢO MẬT
+# ⚙️ CẤU HÌNH CƠ BẢN
 # =========================================================
-# Thay 'username' và 'app-lich-pkh' bằng tên GitHub & Repo của bạn
-GITHUB_USER = "traitay95"
-GITHUB_REPO = "lich-tuan"
-BRANCH = "main"
+# Ưu tiên lấy từ Streamlit Secrets, nếu không có sẽ dùng giá trị mặc định
+GITHUB_USER = st.secrets.get("GITHUB_USER", "traitay95")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO", "lich-tuan")
+BRANCH = st.secrets.get("BRANCH", "main")
+
+# Token GitHub
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "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")
 
 # Cấu hình Email gửi thông báo
-SENDER_EMAIL = "traitay95@gmail.com"
-SENDER_PASSWORD = "wtgm paga vpze bfzm"
+SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "wtgm paga vpze bfzm")
 
 # =========================================================
-# 🛠️ CÁC HÀM TƯƠNG TÁC GITHUB REST API (KHÔNG DÙNG TOKEN)
+# 🛠️ CÁC HÀM TƯƠNG TÁC GITHUB REST API
 # =========================================================
 BASE_URL = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents"
 
+HEADERS = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
+
 def load_data_from_github(filename, default_data):
-    """Đọc file JSON công khai từ GitHub."""
+    """Đọc file JSON từ GitHub."""
     url = f"{BASE_URL}/{filename}?ref={BRANCH}"
     try:
-        res = requests.get(url, timeout=5)
+        res = requests.get(url, headers=HEADERS, timeout=5)
         if res.status_code == 200:
             content = res.json()
             decoded_bytes = base64.b64decode(content["content"])
             data = json.loads(decoded_bytes.decode('utf-8'))
             return data, content["sha"]
         elif res.status_code == 404:
-            # File chưa có -> Khởi tạo
+            # File chưa có -> Tự động khởi tạo file mới
             save_data_to_github(filename, default_data, sha=None, commit_msg=f"Init {filename}")
             return default_data, None
+        else:
+            st.error(f"Lỗi đọc {filename} ({res.status_code}): {res.text}")
     except Exception as e:
-        st.error(f"Lỗi đọc dữ liệu từ GitHub: {e}")
+        st.error(f"Lỗi kết nối GitHub khi đọc dữ liệu: {e}")
     return default_data, None
 
 def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
-    """Ghi dữ liệu thẳng lên GitHub Repo mà không cần bảo mật/token."""
+    """Ghi dữ liệu lên GitHub Repo."""
     url = f"{BASE_URL}/{filename}"
     content_str = json.dumps(data, ensure_ascii=False, indent=2)
     encoded_content = base64.b64encode(content_str.encode('utf-8')).decode('utf-8')
@@ -58,7 +68,7 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
         payload["sha"] = sha
         
     try:
-        res = requests.put(url, json=payload, timeout=5)
+        res = requests.put(url, json=payload, headers=HEADERS, timeout=5)
         if res.status_code in [200, 201]:
             st.cache_data.clear()
             return True
@@ -68,7 +78,9 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
         st.error(f"Lỗi kết nối GitHub: {e}")
     return False
 
-# Load dữ liệu công khai từ Repo
+# =========================================================
+# 🔄 TẢI DỮ LIỆU TỪ GITHUB (ĐÃ BỔ SUNG ĐỂ HẾT LỖI NAMEERROR)
+# =========================================================
 schedules_data, schedules_sha = load_data_from_github("schedules.json", [])
 staffs_data, staffs_sha = load_data_from_github("staffs.json", [])
 
