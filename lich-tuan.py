@@ -1,6 +1,5 @@
 import streamlit as st
-from google.cloud import firestore
-from google.oauth2 import service_account
+from supabase import create_client, Client
 from datetime import datetime, time, timedelta
 import pandas as pd
 import smtplib
@@ -14,60 +13,32 @@ from apscheduler.schedulers.background import BackgroundScheduler
 st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout="wide", page_icon="📅")
 
 # ---------------------------------------------------------
-# Cấu hình Email SMTP & Firebase Credentials Fallback
+# Cấu hình Supabase & SMTP Email
 # ---------------------------------------------------------
+# Dán URL và ANON_KEY từ Supabase vào đây (hoặc cấu hình trong st.secrets)
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://rsxjvquijelfylkevgwt.supabase.co")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_secret_4pH4gw_9WD-PfdXiVZ73XA_PaexXtVs")
+
 SENDER_EMAIL = "traitay95@gmail.com"
 SENDER_PASSWORD = "wtgm paga vpze bfzm"
 
-FIREBASE_CREDENTIALS = {
-  "type": "service_account",
-  "project_id": "lichtuan-2b316",
-  "private_key_id": "79ea12471bfabef4ec591741e3042836ad51ac96",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDz5FERafP3/x9c\n0MbX92XgZvffjweTOfCi58x+Y07/e5rvao+Ikm1LauaNrJ3uWWLQX8XJF18BJmBV\nT2uJq58x7q9zQFQoVZbhg7amzPFP+5DFk7UiJkPDPNNejMVotHEuutMLCrTdSfv5\nf8QNI4c/8CtCz6/hIzvJTTZEkMWWGds2Z+kx6JbkO+0Wewvpkq3UUswD6vQS79mN\njz/atpKehQEe6i6qACcNtQZFzn+Aq+rrF18V9KyT/iPts3XGcIw3Bvbzv8kTDsd4\nptBzkgtJGnpFaZBzu5u/1TytXkQMNqK5U9JGewse2VVYVSFXQIN0JbXoqph03yAD\n7IUMbXpHAgMBAAECggEAcu7RVUd89Q2BFhg83GF13P4pKW0ZwMO5JsvdjmH2RGdX\naCPraAy4/KVv6KvD8SKmclPvvQgKeVxAYXN/1ezOpJU6kTFrd2Z+J+AOHyTNQ0fl\nvXYSEfm+TS9I3HGyRdlizQa1laqB+RZ4a+dN2HM5tWPUvzNoSsxzzDVasY0Xz9eL\n8BTcdlm5LcZFdXEpXqbTKoLkdEINw0TGCYyXQryQ+9NS7F92DxIBnO2o1M7y+QCx\nc6qVcPdHtCo3BB7xBle4Phq+7qzbw8owRavWj0r5P0FxcRRsTgLSzf/CTMbHEVk/\nFu+eD58/Gkmsk+rfXKaLmGRbn8HB2Q8o0tfq+XChwQKBgQD+KYgI0lRJcCuMvFoN\nTyhIl2u7VYOLGfsY7igPm2GYN/+uO54Da5FHeK0LRN4JDEZGB6VTvNAxD4IDWwuW\n/x8Mp+0tVMNyXn4FE4o0hT/sauJsdjZv5kAo/RlO1V/2YJvwxt7/Zh0MDT9Kme74\nv3wwB7NCGXSp9tym/2mSEzQeyQKBgQD1p8Y1ff+qqPPvQhobndQ/oKcl+YPw3oro\nF7SiivaEoD5QNGlLDY9k4SGHiGr6JunZ5wasykQTLd1ZLzyiF4RwKMnnyBFwZWe2\nGFqcCaD+uJjuUrck6LxUFZIM1yfRAGHlChuGhhJYHSq2YX/k00RGK36FahsHTY9W\nni9Y0YoIjwKBgAJaoh7qy8sOVejsyay74fSiKmZGyXwdVn0Jn6ddWg8N3blgZftE\nIMlXrcqf7aqJyZDWe0qGQitiKGMdkcLpRAFbANBdq53AkEw9vRb1cP0glE5K3gA1\nUrzOc1COm1/tzyPww5n7+SLmcIKhYFw/ccgEGj3vfGwilDKbxP+MW/w5AoGBANA7\nXG/Bk3QVbVlVng3k1qLsymMNQ8Ns0TB1z7+srdS0hL21/78ICpIHqEVb5NqRG8+C\n3wyfE99yFFxiBzKbXr84RBX+aJHu01/u+vejzd29mp0Cbo6R3fokor3Rr8WhXlop\nHDYG9gvNBYS91wyf7RLSEZiD3c9t9mAFDLtsO2aPAoGBAKKAUbKzQrjkU44nskWG\nZeLQc/oD3u81vIuZGeaFQ6QUuh6L1AT7Qnchtk/rOPwmL9InezM2zN+l3Ud3RuzA\njFrSl8bBXnhBL776Ixt1W4T0HND/y2c9m6YcEDPFeABkAqVfSK8yg8sifPvthA8C\nlGVpZs3EIF/onAHG7uM8D38i\n-----END PRIVATE KEY-----\n",
-  "client_email": "firebase-adminsdk-fbsvc@lichtuan-2b316.iam.gserviceaccount.com",
-  "client_id": "112928288504526035507",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40lichtuan-2b316.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}
-
 # ---------------------------------------------------------
-# 2. Khởi tạo Firestore bằng google-cloud-firestore chuẩn
+# 2. Khởi tạo kết nối Supabase
 # ---------------------------------------------------------
 @st.cache_resource
-def init_firestore():
-    # Ưu tiên lấy từ st.secrets, nếu không có sẽ lấy từ biến gán trực tiếp
-    if "FIREBASE_CREDENTIALS" in st.secrets:
-        cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS"])
-    else:
-        cred_dict = dict(FIREBASE_CREDENTIALS)
+def init_supabase() -> Client:
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-    credentials = service_account.Credentials.from_service_account_info(cred_dict)
-    
-    return firestore.Client(
-        project=cred_dict["project_id"],
-        credentials=credentials
-    )
-
-db = init_firestore()
+supabase: Client = init_supabase()
 
 # ---------------------------------------------------------
-# 3. Các hàm lấy dữ liệu An Toàn (Timeout 10s)
+# 3. Các hàm lấy dữ liệu An Toàn
 # ---------------------------------------------------------
 @st.cache_data(ttl=30, show_spinner=False)
 def fetch_schedules():
     try:
-        query = db.collection("schedules").order_by("gio_bat_dau", direction=firestore.Query.ASCENDING)
-        docs = query.get(timeout=10)
-        list_schedules = []
-        for doc in docs:
-            d = doc.to_dict()
-            d["id"] = doc.id
-            list_schedules.append(d)
-        return list_schedules
+        response = supabase.table("schedules").select("*").order("gio_bat_dau", desc=False).execute()
+        return response.data if response.data else []
     except Exception as e:
         print(f"[ERROR] Fetch schedules failed: {e}")
         return []
@@ -75,14 +46,8 @@ def fetch_schedules():
 @st.cache_data(ttl=30, show_spinner=False)
 def fetch_staffs():
     try:
-        query = db.collection("staffs").order_by("name", direction=firestore.Query.ASCENDING)
-        docs = query.get(timeout=10)
-        staffs = []
-        for doc in docs:
-            d = doc.to_dict()
-            d["id"] = doc.id
-            staffs.append(d)
-        return staffs
+        response = supabase.table("staffs").select("*").order("name", desc=False).execute()
+        return response.data if response.data else []
     except Exception as e:
         print(f"[ERROR] Fetch staffs failed: {e}")
         return []
@@ -129,20 +94,16 @@ def check_and_send_reminders():
         now = datetime.now()
         two_hours_later = now + timedelta(hours=2)
 
-        docs = db.collection("schedules").where("email_sent", "==", False).get(timeout=10)
-        staff_docs = db.collection("staffs").get(timeout=10)
-        
-        staffs_dict = {}
-        for s in staff_docs:
-            sd = s.to_dict()
-            if "name" in sd and "email" in sd:
-                staffs_dict[sd["name"]] = sd["email"]
+        # Lấy các lịch chưa gửi email
+        schedules_res = supabase.table("schedules").select("*").eq("email_sent", False).execute()
+        staffs_res = supabase.table("staffs").select("*").execute()
 
-        for doc in docs:
-            data = doc.to_dict()
+        staffs_dict = {s["name"]: s["email"] for s in staffs_res.data if "name" in s and "email" in s}
+
+        for data in schedules_res.data:
             try:
                 task_datetime_str = f"{data['ngay']} {data['gio_bat_dau']}"
-                task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M")
+                task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M:%S" if len(data['gio_bat_dau']) == 8 else "%Y-%m-%d %H:%M")
 
                 if now <= task_datetime <= two_hours_later:
                     staff_name = data.get("nguoi_phu_trach")
@@ -158,9 +119,9 @@ def check_and_send_reminders():
                         )
 
                         if success:
-                            db.collection("schedules").document(doc.id).update({"email_sent": True})
+                            supabase.table("schedules").update({"email_sent": True}).eq("id", data["id"]).execute()
             except Exception as ex:
-                print(f"[ERROR] Lỗi xử lý item {doc.id}: {ex}")
+                print(f"[ERROR] Lỗi xử lý item {data.get('id')}: {ex}")
     except Exception as e:
         print(f"[ERROR] Background Task Error: {e}")
 
@@ -194,13 +155,15 @@ def edit_schedule_dialog(task, staff_options):
             edit_nguoi_phu_trach = st.text_input("Người phụ trách (*)", value=task.get("nguoi_phu_trach", ""))
 
         try:
-            curr_date = datetime.strptime(task.get("ngay"), "%Y-%m-%d").date()
+            curr_date = datetime.strptime(str(task.get("ngay")), "%Y-%m-%d").date()
         except Exception:
             curr_date = datetime.now().date()
 
         try:
-            curr_start = datetime.strptime(task.get("gio_bat_dau"), "%H:%M").time()
-            curr_end = datetime.strptime(task.get("gio_ket_thuc"), "%H:%M").time()
+            t_start_str = str(task.get("gio_bat_dau"))[:5]
+            t_end_str = str(task.get("gio_ket_thuc"))[:5]
+            curr_start = datetime.strptime(t_start_str, "%H:%M").time()
+            curr_end = datetime.strptime(t_end_str, "%H:%M").time()
         except Exception:
             curr_start, curr_end = time(8, 0), time(9, 0)
 
@@ -235,7 +198,7 @@ def edit_schedule_dialog(task, staff_options):
                     "trang_thai": edit_trang_thai,
                     "email_sent": False
                 }
-                db.collection("schedules").document(task["id"]).update(updated_data)
+                supabase.table("schedules").update(updated_data).eq("id", task["id"]).execute()
                 st.cache_data.clear()
                 st.success("Đã cập nhật lịch thành công!")
                 st.rerun()
@@ -276,15 +239,14 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
                 "gio_ket_thuc": gio_ket_thuc.strftime("%H:%M"),
                 "ghi_chu": ghi_chu,
                 "trang_thai": trang_thai,
-                "email_sent": False,
-                "created_at": datetime.now()
+                "email_sent": False
             }
-            db.collection("schedules").add(data)
+            supabase.table("schedules").insert(data).execute()
             st.cache_data.clear()
             st.sidebar.success("Đã thêm lịch hẹn thành công!")
             st.rerun()
 
-# Lấy dữ liệu Lịch hẹn đã Cache
+# Lấy dữ liệu Lịch hẹn
 list_schedules = fetch_schedules()
 df_all = pd.DataFrame(list_schedules) if list_schedules else pd.DataFrame()
 
@@ -321,12 +283,14 @@ with tab1:
             st.divider()
 
             if not df_all.empty and "ngay" in df_all.columns:
-                day_tasks = df_all[df_all["ngay"] == day_str]
+                # Chuyển đổi định dạng ngày nếu cần
+                df_all['ngay_str'] = df_all['ngay'].astype(str)
+                day_tasks = df_all[df_all["ngay_str"] == day_str]
                 if not day_tasks.empty:
                     for _, task in day_tasks.iterrows():
                         badge = "🔴" if task['trang_thai'] == 'Hủy' else ("🟢" if task['trang_thai'] == 'Chính thức' else "🟡")
                         with st.container(border=True):
-                            st.markdown(f"⏰ **{task['gio_bat_dau']} - {task['gio_ket_thuc']}**")
+                            st.markdown(f"⏰ **{str(task['gio_bat_dau'])[:5]} - {str(task['gio_ket_thuc'])[:5]}**")
                             st.markdown(f"**{task['title']}**")
                             st.caption(f"👤 {task['nguoi_phu_trach']}")
                             st.caption(f"Trạng thái: {badge} {task['trang_thai']}")
@@ -350,7 +314,7 @@ with tab2:
 
         def colorize_rows(row):
             try:
-                task_dt = datetime.strptime(f"{row['Ngày']} {row['Từ']}", "%Y-%m-%d %H:%M")
+                task_dt = datetime.strptime(f"{row['Ngày']} {str(row['Từ'])[:5]}", "%Y-%m-%d %H:%M")
                 time_diff = task_dt - datetime.now()
                 status = row['Trạng thái']
 
@@ -377,13 +341,13 @@ with tab2:
             selected_task = st.selectbox(
                 "Chọn lịch cần xóa:",
                 options=sorted_schedules,
-                format_func=lambda x: f"[{x['ngay']} | {x['gio_bat_dau']}] {x['title']} - ({x['nguoi_phu_trach']})"
+                format_func=lambda x: f"[{x['ngay']} | {str(x['gio_bat_dau'])[:5]}] {x['title']} - ({x['nguoi_phu_trach']})"
             )
         with col_act:
             st.write(" ")
             st.write(" ")
             if st.button("🗑️ Xóa lịch hẹn", type="primary"):
-                db.collection("schedules").document(selected_task["id"]).delete()
+                supabase.table("schedules").delete().eq("id", selected_task["id"]).execute()
                 st.cache_data.clear()
                 st.toast(f"Đã xóa thành công lịch: {selected_task['title']}")
                 st.rerun()
@@ -413,10 +377,9 @@ with tab3:
                         "name": staff_name,
                         "position": staff_position,
                         "email": staff_email,
-                        "phone": staff_phone,
-                        "created_at": datetime.now()
+                        "phone": staff_phone
                     }
-                    db.collection("staffs").add(staff_data)
+                    supabase.table("staffs").insert(staff_data).execute()
                     st.cache_data.clear()
                     st.success(f"Đã thêm người phụ trách: {staff_name}")
                     st.rerun()
@@ -444,7 +407,7 @@ with tab3:
                 st.write(" ")
                 st.write(" ")
                 if st.button("🗑️ Xóa người phụ trách", type="primary"):
-                    db.collection("staffs").document(selected_staff_del["id"]).delete()
+                    supabase.table("staffs").delete().eq("id", selected_staff_del["id"]).execute()
                     st.cache_data.clear()
                     st.toast(f"Đã xóa: {selected_staff_del['name']}")
                     st.rerun()
