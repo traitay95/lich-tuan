@@ -11,17 +11,13 @@ from email.mime.multipart import MIMEMultipart
 # =========================================================
 # ⚙️ CẤU HÌNH CƠ BẢN
 # =========================================================
-# Ưu tiên lấy từ Streamlit Secrets, nếu không có sẽ dùng giá trị mặc định
 GITHUB_USER = st.secrets.get("GITHUB_USER", "traitay95")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO", "lich-tuan")
 BRANCH = st.secrets.get("BRANCH", "main")
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
 
-# Token GitHub
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "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")
-
-# Cấu hình Email gửi thông báo
 SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
-SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "wtgm paga vpze bfzm")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "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")
 
 # =========================================================
 # 🛠️ CÁC HÀM TƯƠNG TÁC GITHUB REST API
@@ -44,7 +40,6 @@ def load_data_from_github(filename, default_data):
             data = json.loads(decoded_bytes.decode('utf-8'))
             return data, content["sha"]
         elif res.status_code == 404:
-            # File chưa có -> Tự động khởi tạo file mới
             save_data_to_github(filename, default_data, sha=None, commit_msg=f"Init {filename}")
             return default_data, None
         else:
@@ -79,54 +74,71 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
     return False
 
 # =========================================================
-# 🔄 TẢI DỮ LIỆU TỪ GITHUB (ĐÃ BỔ SUNG ĐỂ HẾT LỖI NAMEERROR)
+# 🧹 HÀM TỰ ĐỘNG XÓA LỊCH THÁNG TRƯỚC
+# =========================================================
+def auto_clean_old_schedules(schedules, sha):
+    """Tự động loại bỏ các lịch từ tháng trước trở về trước."""
+    now = datetime.now()
+    # Tính ngày đầu tiên của tháng hiện tại (ví dụ: 2026-09-01)
+    first_day_of_current_month = datetime(now.year, now.month, 1).date()
+    
+    cleaned_schedules = []
+    has_changed = False
+
+    for task in schedules:
+        try:
+            task_date = datetime.strptime(task["ngay"], "%Y-%m-%d").date()
+            if task_date >= first_day_of_current_month:
+                cleaned_schedules.append(task)
+            else:
+                has_changed = True  # Phát hiện lịch cũ cần xóa
+        except Exception:
+            cleaned_schedules.append(task)
+
+    if has_changed:
+        save_data_to_github("schedules.json", cleaned_schedules, sha, "Auto clean old schedules from last month")
+        return cleaned_schedules
+    return schedules
+
+# =========================================================
+# 🔄 TẢI VÀ TỰ ĐỘNG DỌN DẸP DỮ LIỆU
 # =========================================================
 schedules_data, schedules_sha = load_data_from_github("schedules.json", [])
 staffs_data, staffs_sha = load_data_from_github("staffs.json", [])
 
+# Tự động xóa lịch tháng trước khi chạy app
+schedules_data = auto_clean_old_schedules(schedules_data, schedules_sha)
+
 staff_names = [s["name"] for s in staffs_data if "name" in s]
 
 # =========================================================
-# 📧 HÀM GỬI EMAIL
+# 🎨 HÀM XÁC ĐỊNH MÀU SẮC THEO THỜI GIAN CÒN LẠI
 # =========================================================
-def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
+def get_task_highlight_status(task_date_str, task_time_str):
+    """
+    Trả về màu sắc và thông báo dựa trên thời gian còn lại:
+    - Đỏ: Còn dưới 2 tiếng
+    - Vàng: Còn dưới 24 tiếng (từ 2 đến 24 tiếng)
+    - Bình thường: Còn trên 24 tiếng hoặc đã qua
+    """
     try:
-        msg = MIMEMultipart()
-        msg['From'] = f"Hệ thống Lịch PKH <{SENDER_EMAIL}>"
-        msg['To'] = to_email
-        msg['Subject'] = f"⏰ [NHẮC LỊCH] Công việc sắp diễn ra: {task_title}"
+        task_datetime = datetime.strptime(f"{task_date_str} {task_time_str}", "%Y-%m-%d %H:%M")
+        now = datetime.now()
+        diff = (task_datetime - now).total_seconds()
 
-        body = f"""
-        Chào {staff_name},
-
-        Hệ thống xin thông báo bạn có lịch công tác/cuộc họp sắp diễn ra:
-
-        📌 Nội dung: {task_title}
-        🕒 Thời gian: {task_time_str}
-        📝 Ghi chú / Địa điểm: {note if note else 'Không có'}
-
-        Vui lòng chuẩn bị và tham gia đúng giờ!
-        ---
-        Phòng Kế Hoạch
-        """
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        st.error(f"Lỗi gửi email: {e}")
-        return False
+        if 0 <= diff <= 2 * 3600:
+            return "#FFD2D2", "#D8000C", "🔴 Còn < 2 tiếng"  # Đỏ
+        elif 2 * 3600 < diff <= 24 * 3600:
+            return "#FFF3CD", "#856404", "🟡 Còn < 24 tiếng"  # Vàng
+    except Exception:
+        pass
+    return None, None, None
 
 # =========================================================
 # 🖥️ GIAO DIỆN STREAMLIT
 # =========================================================
 st.set_page_config(page_title="Lịch Làm Việc Phòng Kế Hoạch", layout="wide", page_icon="📅")
 st.title("📅 Quản Lý Lịch Làm Việc - Phòng Kế Hoạch")
-st.caption(f"🚀 Data trực tiếp từ Repo: `{GITHUB_USER}/{GITHUB_REPO}` (Nhánh `{BRANCH}`)")
 
 # --- POP-UP CHỈNH SỬA ---
 @st.dialog("✏️ Chỉnh Sửa Lịch Làm Việc")
@@ -229,7 +241,6 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
                 st.rerun()
 
 # --- TAB GIAO DIỆN CHÍNH ---
-df_all = pd.DataFrame(schedules_data) if schedules_data else pd.DataFrame()
 tab1, tab2, tab3 = st.tabs(["📆 Lịch Theo Tuần", "📋 Danh Sách Chi Tiết", "⚙️ Cài Đặt Nhân Sự"])
 
 with tab1:
@@ -253,33 +264,70 @@ with tab1:
             st.divider()
 
             day_tasks = [t for t in schedules_data if t.get("ngay") == day_str]
+            # Sắp xếp giờ từ sớm đến muộn trong ngày
+            day_tasks = sorted(day_tasks, key=lambda x: x.get("gio_bat_dau", ""))
+
             if day_tasks:
                 for task in day_tasks:
-                    with st.container(border=True):
-                        st.markdown(f"⏰ **{task['gio_bat_dau']} - {task['gio_ket_thuc']}**")
-                        st.markdown(f"**{task['title']}**")
-                        st.caption(f"👤 {task['nguoi_phu_trach']}")
-                        if st.button("✏️ Sửa", key=f"btn_edit_{task['id']}"):
-                            edit_schedule_dialog(schedules_data.index(task), task, staff_names)
+                    bg_color, text_color, badge = get_task_highlight_status(task["ngay"], task["gio_bat_dau"])
+                    
+                    # Áp dụng màu nền nếu thuộc khung cảnh báo
+                    if bg_color:
+                        st.markdown(
+                            f"""
+                            <div style="background-color: {bg_color}; color: {text_color}; padding: 8px; border-radius: 6px; margin-bottom: 8px; border: 1px solid {text_color};">
+                                <b>{badge}</b><br>
+                                ⏰ <b>{task['gio_bat_dau']} - {task['gio_ket_thuc']}</b><br>
+                                <b>{task['title']}</b><br>
+                                👤 <small>{task['nguoi_phu_trach']}</small>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        with st.container(border=True):
+                            st.markdown(f"⏰ **{task['gio_bat_dau']} - {task['gio_ket_thuc']}**")
+                            st.markdown(f"**{task['title']}**")
+                            st.caption(f"👤 {task['nguoi_phu_trach']}")
+                    
+                    if st.button("✏️ Sửa", key=f"btn_edit_{task['id']}"):
+                        edit_schedule_dialog(schedules_data.index(task), task, staff_names)
             else:
                 st.caption("_Không có lịch_")
 
 with tab2:
-    if not df_all.empty:
+    if schedules_data:
+        df_all = pd.DataFrame(schedules_data)
+        
+        # 📌 SẮP XẾP TỪ NGÀY LỚN TỚI NHỎ (MỚI NHẤT TRÊN CÙNG)
         df_sorted = df_all.sort_values(by=["ngay", "gio_bat_dau"], ascending=[False, False])
-        st.dataframe(df_sorted[["ngay", "gio_bat_dau", "gio_ket_thuc", "title", "nguoi_phu_trach", "trang_thai", "ghi_chu"]], use_container_width=True)
+        
+        # Đổi tên cột cho đẹp
+        df_display = df_sorted.rename(columns={
+            "ngay": "Ngày",
+            "gio_bat_dau": "Giờ Bắt Đầu",
+            "gio_ket_thuc": "Giờ Kết Thúc",
+            "title": "Nội Dung Công Việc",
+            "nguoi_phu_trach": "Người Phụ Trách",
+            "trang_thai": "Trạng Thái",
+            "ghi_chu": "Ghi Chú"
+        })
+
+        st.dataframe(df_display[["Ngày", "Giờ Bắt Đầu", "Giờ Kết Thúc", "Nội Dung Công Việc", "Người Phụ Trách", "Trạng Thái", "Ghi Chú"]], use_container_width=True)
         
         st.divider()
         col_s, col_b = st.columns([3, 1])
         with col_s:
-            selected_del = st.selectbox("Chọn lịch để xóa:", options=schedules_data, format_func=lambda x: f"[{x['ngay']}] {x['title']}")
+            # Danh sách chọn xóa cũng sắp xếp theo ngày mới nhất
+            sorted_schedules_for_del = sorted(schedules_data, key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), reverse=True)
+            selected_del = st.selectbox("Chọn lịch để xóa:", options=sorted_schedules_for_del, format_func=lambda x: f"[{x['ngay']}] {x['title']} ({x['nguoi_phu_trach']})")
         with col_b:
             st.write(" ")
             st.write(" ")
             if st.button("🗑️ Xóa Lịch", type="primary"):
                 updated_schedules = [t for t in schedules_data if t["id"] != selected_del["id"]]
                 if save_data_to_github("schedules.json", updated_schedules, schedules_sha, "Delete task"):
-                    st.toast("Đã xóa thành công!")
+                    st.toast("Đã xóa lịch thành công!")
                     st.rerun()
     else:
         st.info("Chưa có lịch hẹn nào.")
