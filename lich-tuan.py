@@ -7,7 +7,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
 
 # ---------------------------------------------------------
 # 1. Cấu hình trang Streamlit (BẮT BUỘC ĐẶT ĐẦU TIÊN)
@@ -35,7 +34,7 @@ FIREBASE_CREDENTIALS = {
 }
 
 # ---------------------------------------------------------
-# 2. Khởi tạo kết nối Firebase
+# 2. Khởi tạo kết nối Firebase An Toàn
 # ---------------------------------------------------------
 @st.cache_resource
 def init_firebase():
@@ -52,27 +51,37 @@ def init_firebase():
 db = init_firebase()
 
 # ---------------------------------------------------------
-# 3. Hàm hỗ trợ Cache dữ liệu Firestore
+# 3. Hàm lấy dữ liệu chống Treo/Đơ (Timeout Protection)
 # ---------------------------------------------------------
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_schedules():
-    docs = db.collection("schedules").order_by("gio_bat_dau", direction=firestore.Query.ASCENDING).stream()
-    list_schedules = []
-    for doc in docs:
-        d = doc.to_dict()
-        d["id"] = doc.id
-        list_schedules.append(d)
-    return list_schedules
+    try:
+        # Giới hạn timeout 5 giây để tránh treo UI
+        docs = db.collection("schedules").order_by("gio_bat_dau", direction=firestore.Query.ASCENDING).get(timeout=5)
+        list_schedules = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            list_schedules.append(d)
+        return list_schedules
+    except Exception as e:
+        print(f"Lỗi truy vấn schedules: {e}")
+        return []
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_staffs():
-    docs = db.collection("staffs").order_by("name", direction=firestore.Query.ASCENDING).stream()
-    staffs = []
-    for doc in docs:
-        d = doc.to_dict()
-        d["id"] = doc.id
-        staffs.append(d)
-    return staffs
+    try:
+        # Giới hạn timeout 5 giây để tránh treo UI
+        docs = db.collection("staffs").order_by("name", direction=firestore.Query.ASCENDING).get(timeout=5)
+        staffs = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            staffs.append(d)
+        return staffs
+    except Exception as e:
+        print(f"Lỗi truy vấn staffs: {e}")
+        return []
 
 # ---------------------------------------------------------
 # 4. Hàm gửi Email qua SMTP
@@ -84,22 +93,21 @@ def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
         msg['To'] = to_email
         msg['Subject'] = f"⏰ [NHẮC LỊCH] Công việc sắp diễn ra trong 2 tiếng: {task_title}"
 
-        body = f"""
-        Chào {staff_name},
+        body = f"""Chào {staff_name},
 
-        Hệ thống xin thông báo bạn có lịch công tác/cuộc họp sắp diễn ra trong 2 tiếng tới:
+Hệ thống xin thông báo bạn có lịch công tác/cuộc họp sắp diễn ra trong 2 tiếng tới:
 
-        📌 Nội dung: {task_title}
-        🕒 Thời gian: {task_time_str}
-        📝 Ghi chú / Địa điểm: {note if note else 'Không có'}
+📌 Nội dung: {task_title}
+🕒 Thời gian: {task_time_str}
+📝 Ghi chú / Địa điểm: {note if note else 'Không có'}
 
-        Vui lòng chuẩn bị và tham gia đúng giờ!
-        ---
-        Phòng Kế Hoạch
-        """
+Vui lòng chuẩn bị và tham gia đúng giờ!
+---
+Phòng Kế Hoạch
+"""
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
@@ -110,17 +118,19 @@ def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
         return False
 
 # ---------------------------------------------------------
-# 5. Task ngầm: Quét Firestore và gửi mail
+# 5. Task ngầm: Quét Firestore và gửi mail (Đã tách độc lập)
 # ---------------------------------------------------------
 def check_and_send_reminders():
     try:
         now = datetime.now()
         two_hours_later = now + timedelta(hours=2)
 
+        # Truy vấn trực tiếp không thông qua Cache Streamlit
         schedules_ref = db.collection("schedules").where("email_sent", "==", False)
-        docs = schedules_ref.stream()
+        docs = schedules_ref.get(timeout=10)
 
-        staffs_dict = {s["name"]: s["email"] for s in fetch_staffs() if "name" in s and "email" in s}
+        staff_docs = db.collection("staffs").get(timeout=10)
+        staffs_dict = {s.to_dict().get("name"): s.to_dict().get("email") for s in staff_docs if "name" in s.to_dict() and "email" in s.to_dict()}
 
         for doc in docs:
             data = doc.to_dict()
@@ -148,7 +158,7 @@ def check_and_send_reminders():
     except Exception as e:
         print(f"Lỗi task nhắc lịch: {e}")
 
-# Khởi chạy Background Scheduler an toàn
+# Khởi chạy Scheduler an toàn
 @st.cache_resource
 def start_scheduler():
     scheduler = BackgroundScheduler()
