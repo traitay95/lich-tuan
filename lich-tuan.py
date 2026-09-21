@@ -143,31 +143,6 @@ def start_scheduler():
 scheduler = start_scheduler()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 
-# Tự động dọn dẹp các lịch từ năm cũ
-current_year = datetime.now().year
-
-@st.cache_resource(ttl=3600)
-def auto_delete_old_year_schedules():
-    try:
-        schedules_ref = db.collection("schedules")
-        docs = schedules_ref.stream()
-        deleted_count = 0
-        for doc in docs:
-            data = doc.to_dict()
-            if "ngay" in data and data["ngay"]:
-                try:
-                    task_year = int(data["ngay"].split("-")[0])
-                    if task_year < current_year:
-                        db.collection("schedules").document(doc.id).delete()
-                        deleted_count += 1
-                except ValueError:
-                    continue
-        return deleted_count
-    except Exception:
-        return 0
-
-auto_delete_old_year_schedules()
-
 st.title("📅 Quản Lý & Sắp Lịch Làm Việc - Phòng Kế Hoạch")
 
 # ---------------------------------------------------------
