@@ -17,7 +17,7 @@ st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout=
 # ---------------------------------------------------------
 # Dán URL và ANON_KEY từ Supabase vào đây (hoặc cấu hình trong st.secrets)
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://rsxjvquijelfylkevgwt.supabase.co")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_secret_4pH4gw_9WD-PfdXiVZ73XA_PaexXtVs")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_SWPd-hu2i253AcIc31nqyg_UJsc7Y0C")
 
 SENDER_EMAIL = "traitay95@gmail.com"
 SENDER_PASSWORD = "wtgm paga vpze bfzm"
