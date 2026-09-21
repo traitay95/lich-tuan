@@ -79,7 +79,6 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
 def auto_clean_old_schedules(schedules, sha):
     """Tự động loại bỏ các lịch từ tháng trước trở về trước."""
     now = datetime.now()
-    # Tính ngày đầu tiên của tháng hiện tại (ví dụ: 2026-09-01)
     first_day_of_current_month = datetime(now.year, now.month, 1).date()
     
     cleaned_schedules = []
@@ -91,7 +90,7 @@ def auto_clean_old_schedules(schedules, sha):
             if task_date >= first_day_of_current_month:
                 cleaned_schedules.append(task)
             else:
-                has_changed = True  # Phát hiện lịch cũ cần xóa
+                has_changed = True
         except Exception:
             cleaned_schedules.append(task)
 
@@ -106,9 +105,7 @@ def auto_clean_old_schedules(schedules, sha):
 schedules_data, schedules_sha = load_data_from_github("schedules.json", [])
 staffs_data, staffs_sha = load_data_from_github("staffs.json", [])
 
-# Tự động xóa lịch tháng trước khi chạy app
 schedules_data = auto_clean_old_schedules(schedules_data, schedules_sha)
-
 staff_names = [s["name"] for s in staffs_data if "name" in s]
 
 # =========================================================
@@ -119,7 +116,6 @@ def get_task_highlight_status(task_date_str, task_time_str):
     Trả về màu sắc và thông báo dựa trên thời gian còn lại:
     - Đỏ: Còn dưới 2 tiếng
     - Vàng: Còn dưới 24 tiếng (từ 2 đến 24 tiếng)
-    - Bình thường: Còn trên 24 tiếng hoặc đã qua
     """
     try:
         task_datetime = datetime.strptime(f"{task_date_str} {task_time_str}", "%Y-%m-%d %H:%M")
@@ -127,12 +123,19 @@ def get_task_highlight_status(task_date_str, task_time_str):
         diff = (task_datetime - now).total_seconds()
 
         if 0 <= diff <= 2 * 3600:
-            return "#FFD2D2", "#D8000C", "🔴 Còn < 2 tiếng"  # Đỏ
+            return "#FFD2D2", "#D8000C", "🔴 Còn < 2 tiếng"
         elif 2 * 3600 < diff <= 24 * 3600:
-            return "#FFF3CD", "#856404", "🟡 Còn < 24 tiếng"  # Vàng
+            return "#FFF3CD", "#856404", "🟡 Còn < 24 tiếng"
     except Exception:
         pass
     return None, None, None
+
+def style_row_by_time(row):
+    """Hàm tô màu từng dòng cho Pandas DataFrame."""
+    bg_color, text_color, _ = get_task_highlight_status(str(row["ngay"]), str(row["gio_bat_dau"]))
+    if bg_color:
+        return [f"background-color: {bg_color}; color: {text_color}; font-weight: bold;"] * len(row)
+    return [""] * len(row)
 
 # =========================================================
 # 🖥️ GIAO DIỆN STREAMLIT
@@ -264,14 +267,12 @@ with tab1:
             st.divider()
 
             day_tasks = [t for t in schedules_data if t.get("ngay") == day_str]
-            # Sắp xếp giờ từ sớm đến muộn trong ngày
             day_tasks = sorted(day_tasks, key=lambda x: x.get("gio_bat_dau", ""))
 
             if day_tasks:
                 for task in day_tasks:
                     bg_color, text_color, badge = get_task_highlight_status(task["ngay"], task["gio_bat_dau"])
                     
-                    # Áp dụng màu nền nếu thuộc khung cảnh báo
                     if bg_color:
                         st.markdown(
                             f"""
@@ -300,9 +301,12 @@ with tab2:
         df_all = pd.DataFrame(schedules_data)
         
         # 📌 SẮP XẾP TỪ NGÀY LỚN TỚI NHỎ (MỚI NHẤT TRÊN CÙNG)
-        df_sorted = df_all.sort_values(by=["ngay", "gio_bat_dau"], ascending=[False, False])
+        df_sorted = df_all.sort_values(by=["ngay", "gio_bat_dau"], ascending=[False, False]).copy()
         
-        # Đổi tên cột cho đẹp
+        # 🎨 Áp dụng tô màu theo dòng bằng Styler trước khi đổi tên cột hiển thị
+        styled_df = df_sorted.style.apply(style_row_by_time, axis=1)
+
+        # Định dạng cột hiển thị
         df_display = df_sorted.rename(columns={
             "ngay": "Ngày",
             "gio_bat_dau": "Giờ Bắt Đầu",
@@ -313,12 +317,31 @@ with tab2:
             "ghi_chu": "Ghi Chú"
         })
 
-        st.dataframe(df_display[["Ngày", "Giờ Bắt Đầu", "Giờ Kết Thúc", "Nội Dung Công Việc", "Người Phụ Trách", "Trạng Thái", "Ghi Chú"]], use_container_width=True)
+        # Áp dụng lại style cho dataframe đã đổi tên cột
+        display_columns = ["Ngày", "Giờ Bắt Đầu", "Giờ Kết Thúc", "Nội Dung Công Việc", "Người Phụ Trách", "Trạng Thái", "Ghi Chú"]
+        
+        st.markdown("**Chú thích màu sắc:** 🔴 *Còn < 2 tiếng* | 🟡 *Còn < 24 tiếng*")
+        
+        st.dataframe(
+            df_sorted.style.apply(style_row_by_time, axis=1).format(
+                subset=["ngay", "gio_bat_dau", "gio_ket_thuc"]
+            ),
+            column_order=["ngay", "gio_bat_dau", "gio_ket_thuc", "title", "nguoi_phu_trach", "trang_thai", "ghi_chu"],
+            column_config={
+                "ngay": "Ngày",
+                "gio_bat_dau": "Giờ Bắt Đầu",
+                "gio_ket_thuc": "Giờ Kết Thúc",
+                "title": "Nội Dung Công Việc",
+                "nguoi_phu_trach": "Người Phụ Trách",
+                "trang_thai": "Trạng Thái",
+                "ghi_chu": "Ghi Chú"
+            },
+            use_container_width=True
+        )
         
         st.divider()
         col_s, col_b = st.columns([3, 1])
         with col_s:
-            # Danh sách chọn xóa cũng sắp xếp theo ngày mới nhất
             sorted_schedules_for_del = sorted(schedules_data, key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), reverse=True)
             selected_del = st.selectbox("Chọn lịch để xóa:", options=sorted_schedules_for_del, format_func=lambda x: f"[{x['ngay']}] {x['title']} ({x['nguoi_phu_trach']})")
         with col_b:
