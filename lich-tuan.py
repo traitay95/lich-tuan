@@ -15,12 +15,11 @@ st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout=
 # ---------------------------------------------------------
 # Cấu hình Supabase & SMTP Email
 # ---------------------------------------------------------
-# Dán URL và ANON_KEY từ Supabase vào đây (hoặc cấu hình trong st.secrets)
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://rsxjvquijelfylkevgwt.supabase.co")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzeGp2cXVpamVsZnlsa2V2Z3d0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTk4NTAyNSwiZXhwIjoyMTA1NTYxMDI1fQ.MAQXQnW7FtyixOSE2mtMtSMOA_RMwGvPzs4YcsvQohQ")
 
-SENDER_EMAIL = "traitay95@gmail.com"
-SENDER_PASSWORD = "wtgm paga vpze bfzm"
+SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "wtgm paga vpze bfzm")
 
 # ---------------------------------------------------------
 # 2. Khởi tạo kết nối Supabase
@@ -94,7 +93,6 @@ def check_and_send_reminders():
         now = datetime.now()
         two_hours_later = now + timedelta(hours=2)
 
-        # Lấy các lịch chưa gửi email
         schedules_res = supabase.table("schedules").select("*").eq("email_sent", False).execute()
         staffs_res = supabase.table("staffs").select("*").execute()
 
@@ -103,7 +101,7 @@ def check_and_send_reminders():
         for data in schedules_res.data:
             try:
                 task_datetime_str = f"{data['ngay']} {data['gio_bat_dau']}"
-                task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M:%S" if len(data['gio_bat_dau']) == 8 else "%Y-%m-%d %H:%M")
+                task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M:%S" if len(str(data['gio_bat_dau'])) == 8 else "%Y-%m-%d %H:%M")
 
                 if now <= task_datetime <= two_hours_later:
                     staff_name = data.get("nguoi_phu_trach")
@@ -192,8 +190,8 @@ def edit_schedule_dialog(task, staff_options):
                     "title": edit_title,
                     "nguoi_phu_trach": edit_nguoi_phu_trach,
                     "ngay": edit_ngay_lam.strftime("%Y-%m-%d"),
-                    "gio_bat_dau": edit_gio_bat_dau.strftime("%H:%M"),
-                    "gio_ket_thuc": edit_gio_ket_thuc.strftime("%H:%M"),
+                    "gio_bat_dau": edit_gio_bat_dau.strftime("%H:%M:%S"), # Định dạng chuẩn ISO 8601
+                    "gio_ket_thuc": edit_gio_ket_thuc.strftime("%H:%M:%S"), # Định dạng chuẩn ISO 8601
                     "ghi_chu": edit_ghi_chu,
                     "trang_thai": edit_trang_thai,
                     "email_sent": False
@@ -235,8 +233,8 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
                 "title": title,
                 "nguoi_phu_trach": nguoi_phu_trach,
                 "ngay": ngay_lam.strftime("%Y-%m-%d"),
-                "gio_bat_dau": gio_bat_dau.strftime("%H:%M"),
-                "gio_ket_thuc": gio_ket_thuc.strftime("%H:%M"),
+                "gio_bat_dau": gio_bat_dau.strftime("%H:%M:%S"), # Định dạng chuẩn ISO 8601
+                "gio_ket_thuc": gio_ket_thuc.strftime("%H:%M:%S"), # Định dạng chuẩn ISO 8601
                 "ghi_chu": ghi_chu,
                 "trang_thai": trang_thai,
                 "email_sent": False
@@ -283,7 +281,6 @@ with tab1:
             st.divider()
 
             if not df_all.empty and "ngay" in df_all.columns:
-                # Chuyển đổi định dạng ngày nếu cần
                 df_all['ngay_str'] = df_all['ngay'].astype(str)
                 day_tasks = df_all[df_all["ngay_str"] == day_str]
                 if not day_tasks.empty:
