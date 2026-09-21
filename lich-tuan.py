@@ -4,20 +4,23 @@ import requests
 import smtplib
 import pandas as pd
 import streamlit as st
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # =========================================================
-# ⚙️ CẤU HÌNH CƠ BẢN
+# ⚙️ CẤU HÌNH CƠ BẢN & MÚI GIỜ
 # =========================================================
+# Định nghĩa múi giờ Việt Nam (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
+
 GITHUB_USER = st.secrets.get("GITHUB_USER", "traitay95")
 GITHUB_REPO = st.secrets.get("GITHUB_REPO", "lich-tuan")
 BRANCH = st.secrets.get("BRANCH", "main")
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
 
-SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
-SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "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")
+SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "")
 
 # =========================================================
 # 🛠️ CÁC HÀM TƯƠNG TÁC GITHUB REST API
@@ -78,7 +81,7 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
 # =========================================================
 def auto_clean_old_schedules(schedules, sha):
     """Tự động loại bỏ các lịch từ tháng trước trở về trước."""
-    now = datetime.now()
+    now = datetime.now(VN_TZ).replace(tzinfo=None)
     first_day_of_current_month = datetime(now.year, now.month, 1).date()
     
     cleaned_schedules = []
@@ -111,15 +114,18 @@ staff_names = [s["name"] for s in staffs_data if "name" in s]
 # =========================================================
 # 🎨 HÀM XÁC ĐỊNH MÀU SẮC THEO THỜI GIAN CÒN LẠI
 # =========================================================
-def get_task_highlight_status(task_date_str, task_time_str):
+def get_task_highlight_status(task_date_str, task_time_str, task_status=""):
     """
-    Trả về màu sắc và thông báo dựa trên thời gian còn lại:
-    - Đỏ: Còn dưới 2 tiếng
-    - Vàng: Còn dưới 24 tiếng (từ 2 đến 24 tiếng)
+    Trả về màu sắc và thông báo dựa trên thời gian còn lại (chuẩn múi giờ Việt Nam UTC+7):
+    - Đỏ: Còn từ 0 đến 2 tiếng (chưa hoàn thành / hủy)
+    - Vàng: Còn từ 2 đến 24 tiếng
     """
+    if task_status in ["Hoàn thành", "Hủy"]:
+        return None, None, None
+
     try:
         task_datetime = datetime.strptime(f"{task_date_str} {task_time_str}", "%Y-%m-%d %H:%M")
-        now = datetime.now()
+        now = datetime.now(VN_TZ).replace(tzinfo=None)
         diff = (task_datetime - now).total_seconds()
 
         if 0 <= diff <= 2 * 3600:
@@ -128,11 +134,16 @@ def get_task_highlight_status(task_date_str, task_time_str):
             return "#FFF3CD", "#856404", "🟡 Còn < 24 tiếng"
     except Exception:
         pass
+
     return None, None, None
 
 def style_row_by_time(row):
     """Hàm tô màu từng dòng cho Pandas DataFrame."""
-    bg_color, text_color, _ = get_task_highlight_status(str(row["ngay"]), str(row["gio_bat_dau"]))
+    bg_color, text_color, _ = get_task_highlight_status(
+        str(row.get("ngay", "")),
+        str(row.get("gio_bat_dau", "")),
+        str(row.get("trang_thai", ""))
+    )
     if bg_color:
         return [f"background-color: {bg_color}; color: {text_color}; font-weight: bold;"] * len(row)
     return [""] * len(row)
@@ -160,7 +171,7 @@ def edit_schedule_dialog(task_idx, task, staff_options):
             curr_start = datetime.strptime(task.get("gio_bat_dau"), "%H:%M").time()
             curr_end = datetime.strptime(task.get("gio_ket_thuc"), "%H:%M").time()
         except Exception:
-            curr_date = datetime.now().date()
+            curr_date = datetime.now(VN_TZ).date()
             curr_start, curr_end = time(8, 0), time(9, 0)
 
         col1, col2 = st.columns(2)
@@ -211,7 +222,7 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
-        ngay_lam = st.date_input("Ngày thực hiện", datetime.now())
+        ngay_lam = st.date_input("Ngày thực hiện", datetime.now(VN_TZ).date())
     with col_d2:
         gio_bat_dau = st.time_input("Giờ bắt đầu", time(8, 0))
         gio_ket_thuc = st.time_input("Giờ kết thúc", time(9, 0))
@@ -249,7 +260,7 @@ tab1, tab2, tab3 = st.tabs(["📆 Lịch Theo Tuần", "📋 Danh Sách Chi Ti�
 with tab1:
     col_w1, col_w2 = st.columns([1, 2])
     with col_w1:
-        picked_date = st.date_input("🗓️ Chọn ngày xem lịch:", value=datetime.now().date())
+        picked_date = st.date_input("🗓️ Chọn ngày xem lịch:", value=datetime.now(VN_TZ).date())
         start_of_week = picked_date - timedelta(days=picked_date.weekday())
         end_of_week = start_of_week + timedelta(days=6)
         st.info(f"📌 **Tuần:** {start_of_week.strftime('%d/%m/%Y')} - {end_of_week.strftime('%d/%m/%Y')}")
@@ -258,11 +269,13 @@ with tab1:
     day_names = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"]
     cols = st.columns(7)
 
+    today_date = datetime.now(VN_TZ).date()
+
     for i, col in enumerate(cols):
         current_day = week_days[i]
         day_str = current_day.strftime("%Y-%m-%d")
         with col:
-            st.markdown(f"### {'🔵' if current_day == datetime.now().date() else '🗓️'} {day_names[i]}")
+            st.markdown(f"### {'🔵' if current_day == today_date else '🗓️'} {day_names[i]}")
             st.caption(current_day.strftime("%d/%m/%Y"))
             st.divider()
 
@@ -271,7 +284,11 @@ with tab1:
 
             if day_tasks:
                 for task in day_tasks:
-                    bg_color, text_color, badge = get_task_highlight_status(task["ngay"], task["gio_bat_dau"])
+                    bg_color, text_color, badge = get_task_highlight_status(
+                        task.get("ngay"),
+                        task.get("gio_bat_dau"),
+                        task.get("trang_thai")
+                    )
                     
                     if bg_color:
                         st.markdown(
@@ -300,32 +317,16 @@ with tab2:
     if schedules_data:
         df_all = pd.DataFrame(schedules_data)
         
-        # 📌 SẮP XẾP TỪ NGÀY LỚN TỚI NHỎ (MỚI NHẤT TRÊN CÙNG)
+        # SẮP XẾP TỪ NGÀY LỚN TỚI NHỎ (MỚI NHẤT TRÊN CÙNG)
         df_sorted = df_all.sort_values(by=["ngay", "gio_bat_dau"], ascending=[False, False]).copy()
-        
-        # 🎨 Áp dụng tô màu theo dòng bằng Styler trước khi đổi tên cột hiển thị
-        styled_df = df_sorted.style.apply(style_row_by_time, axis=1)
-
-        # Định dạng cột hiển thị
-        df_display = df_sorted.rename(columns={
-            "ngay": "Ngày",
-            "gio_bat_dau": "Giờ Bắt Đầu",
-            "gio_ket_thuc": "Giờ Kết Thúc",
-            "title": "Nội Dung Công Việc",
-            "nguoi_phu_trach": "Người Phụ Trách",
-            "trang_thai": "Trạng Thái",
-            "ghi_chu": "Ghi Chú"
-        })
-
-        # Áp dụng lại style cho dataframe đã đổi tên cột
-        display_columns = ["Ngày", "Giờ Bắt Đầu", "Giờ Kết Thúc", "Nội Dung Công Việc", "Người Phụ Trách", "Trạng Thái", "Ghi Chú"]
         
         st.markdown("**Chú thích màu sắc:** 🔴 *Còn < 2 tiếng* | 🟡 *Còn < 24 tiếng*")
         
+        # Áp dụng tô màu dòng bằng Styler
+        styled_df = df_sorted.style.apply(style_row_by_time, axis=1)
+
         st.dataframe(
-            df_sorted.style.apply(style_row_by_time, axis=1).format(
-                subset=["ngay", "gio_bat_dau", "gio_ket_thuc"]
-            ),
+            styled_df,
             column_order=["ngay", "gio_bat_dau", "gio_ket_thuc", "title", "nguoi_phu_trach", "trang_thai", "ghi_chu"],
             column_config={
                 "ngay": "Ngày",
