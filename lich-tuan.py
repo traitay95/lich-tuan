@@ -12,8 +12,8 @@ from email.mime.multipart import MIMEMultipart
 # ⚙️ CẤU HÌNH CÔNG KHAI - KHÔNG CẦN BẢO MẬT
 # =========================================================
 # Thay 'username' và 'app-lich-pkh' bằng tên GitHub & Repo của bạn
-GITHUB_USER = "username"
-GITHUB_REPO = "app-lich-pkh"
+GITHUB_USER = "traitay95"
+GITHUB_REPO = "lich-tuan"
 BRANCH = "main"
 
 # Cấu hình Email gửi thông báo
