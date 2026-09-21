@@ -1,3 +1,9 @@
+# Mật khẩu / Credentials
 firebase_key.json
 .streamlit/secrets.toml
+
+# Virtual Environment
+venv/
+.venv/
 __pycache__/
+*.pyc
