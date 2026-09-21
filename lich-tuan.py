@@ -1,3 +1,6 @@
+import os
+# Ép Firebase/Google SDK sử dụng HTTP/1.1 thay cho gRPC để tránh treo trên Streamlit Cloud
+os.environ["GOOGLE_CLOUD_DISABLE_GRPC"] = "true"
 import streamlit as st
 
 # ---------------------------------------------------------
@@ -26,21 +29,22 @@ SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "")
 # ---------------------------------------------------------
 if not firebase_admin._apps:
     cred = None
-    # Lần lượt kiểm tra các khóa trong Streamlit Secrets
     if "gcp_service_account" in st.secrets:
+        # Chuyển secrets sang dict
         key_dict = dict(st.secrets["gcp_service_account"])
+        # Sửa lỗi xuống dòng của Private Key trên Streamlit Cloud
+        if "private_key" in key_dict:
+            key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
         cred = credentials.Certificate(key_dict)
     elif "textkey" in st.secrets:
         key_dict = dict(st.secrets["textkey"])
+        if "private_key" in key_dict:
+            key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
         cred = credentials.Certificate(key_dict)
     else:
-        try:
-            cred = credentials.Certificate("firebase_key.json")
-        except Exception as e:
-            st.error("Không tìm thấy tệp hoặc cấu hình khóa Firebase bí mật!")
+        cred = credentials.Certificate("firebase_key.json")
 
-    if cred:
-        firebase_admin.initialize_app(cred)
+    firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
