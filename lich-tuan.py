@@ -28,7 +28,12 @@ SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "wtgm paga vpze bfzm")
 # ---------------------------------------------------------
 @st.cache_resource
 def init_mongo():
-    client = MongoClient(MONGO_URI)
+    client = MongoClient(
+        MONGO_URI,
+        tls=True,
+        tlsAllowInvalidCertificates=True,
+        serverSelectionTimeoutMS=5000
+    )
     return client[DB_NAME]
 
 db = init_mongo()
