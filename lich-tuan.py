@@ -1,6 +1,7 @@
 import streamlit as st
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials
+from google.cloud import firestore
 from datetime import datetime, time, timedelta
 import pandas as pd
 import smtplib
@@ -34,30 +35,31 @@ FIREBASE_CREDENTIALS = {
 }
 
 # ---------------------------------------------------------
-# 2. Khởi tạo kết nối Firebase An Toàn
+# 2. Khởi tạo Firestore bằng REST Transport (Khắc phục treo Streamlit Cloud)
 # ---------------------------------------------------------
 @st.cache_resource
-def init_firebase():
-    if not firebase_admin._apps:
-        try:
-            cred_dict = dict(FIREBASE_CREDENTIALS)
-            cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        except Exception as e:
-            st.error(f"Lỗi khởi tạo Firebase: {e}")
-    return firestore.client()
+def init_firestore():
+    cred_dict = dict(FIREBASE_CREDENTIALS)
+    cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+    cred = credentials.Certificate(cred_dict)
+    
+    # Ép dùng transport='rest' để tránh kẹt gRPC socket trên Linux/Cloud
+    return firestore.Client(
+        project=cred_dict["project_id"],
+        credentials=cred.get_credential(),
+        transport="rest"
+    )
 
-db = init_firebase()
+db = init_firestore()
 
 # ---------------------------------------------------------
-# 3. Hàm lấy dữ liệu chống Treo/Đơ (Timeout Protection)
+# 3. Các hàm lấy dữ liệu An Toàn (Timeout 10s)
 # ---------------------------------------------------------
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_schedules():
     try:
-        # Giới hạn timeout 5 giây để tránh treo UI
-        docs = db.collection("schedules").order_by("gio_bat_dau", direction=firestore.Query.ASCENDING).get(timeout=5)
+        query = db.collection("schedules").order_by("gio_bat_dau", direction=firestore.Query.ASCENDING)
+        docs = query.get(timeout=10)
         list_schedules = []
         for doc in docs:
             d = doc.to_dict()
@@ -65,14 +67,14 @@ def fetch_schedules():
             list_schedules.append(d)
         return list_schedules
     except Exception as e:
-        print(f"Lỗi truy vấn schedules: {e}")
+        print(f"[ERROR] Fetch schedules failed: {e}")
         return []
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_staffs():
     try:
-        # Giới hạn timeout 5 giây để tránh treo UI
-        docs = db.collection("staffs").order_by("name", direction=firestore.Query.ASCENDING).get(timeout=5)
+        query = db.collection("staffs").order_by("name", direction=firestore.Query.ASCENDING)
+        docs = query.get(timeout=10)
         staffs = []
         for doc in docs:
             d = doc.to_dict()
@@ -80,11 +82,11 @@ def fetch_staffs():
             staffs.append(d)
         return staffs
     except Exception as e:
-        print(f"Lỗi truy vấn staffs: {e}")
+        print(f"[ERROR] Fetch staffs failed: {e}")
         return []
 
 # ---------------------------------------------------------
-# 4. Hàm gửi Email qua SMTP
+# 4. Gửi Email thông báo qua SMTP
 # ---------------------------------------------------------
 def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
     try:
@@ -114,23 +116,26 @@ Phòng Kế Hoạch
         server.quit()
         return True
     except Exception as e:
-        print(f"Lỗi gửi email: {e}")
+        print(f"[ERROR] Gửi email thất bại: {e}")
         return False
 
 # ---------------------------------------------------------
-# 5. Task ngầm: Quét Firestore và gửi mail (Đã tách độc lập)
+# 5. Background Task: Quét lịch & Nhắc nhở Email
 # ---------------------------------------------------------
 def check_and_send_reminders():
     try:
         now = datetime.now()
         two_hours_later = now + timedelta(hours=2)
 
-        # Truy vấn trực tiếp không thông qua Cache Streamlit
-        schedules_ref = db.collection("schedules").where("email_sent", "==", False)
-        docs = schedules_ref.get(timeout=10)
-
+        # Đọc trực tiếp Firestore bằng REST, không qua Streamlit Cache
+        docs = db.collection("schedules").where("email_sent", "==", False).get(timeout=10)
         staff_docs = db.collection("staffs").get(timeout=10)
-        staffs_dict = {s.to_dict().get("name"): s.to_dict().get("email") for s in staff_docs if "name" in s.to_dict() and "email" in s.to_dict()}
+        
+        staffs_dict = {}
+        for s in staff_docs:
+            sd = s.to_dict()
+            if "name" in sd and "email" in sd:
+                staffs_dict[sd["name"]] = sd["email"]
 
         for doc in docs:
             data = doc.to_dict()
@@ -154,11 +159,10 @@ def check_and_send_reminders():
                         if success:
                             db.collection("schedules").document(doc.id).update({"email_sent": True})
             except Exception as ex:
-                print(f"Lỗi dòng lịch {doc.id}: {ex}")
+                print(f"[ERROR] Lỗi xử lý item {doc.id}: {ex}")
     except Exception as e:
-        print(f"Lỗi task nhắc lịch: {e}")
+        print(f"[ERROR] Background Task Error: {e}")
 
-# Khởi chạy Scheduler an toàn
 @st.cache_resource
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -169,7 +173,7 @@ def start_scheduler():
 scheduler = start_scheduler()
 
 # ---------------------------------------------------------
-# Giao diện chính
+# 6. Giao Diện Chính Application
 # ---------------------------------------------------------
 st.title("📅 Quản Lý & Sắp Lịch Làm Việc - Phòng Kế Hoạch")
 
@@ -272,18 +276,18 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
                 "ghi_chu": ghi_chu,
                 "trang_thai": trang_thai,
                 "email_sent": False,
-                "created_at": firestore.SERVER_TIMESTAMP
+                "created_at": datetime.now()
             }
             db.collection("schedules").add(data)
             st.cache_data.clear()
             st.sidebar.success("Đã thêm lịch hẹn thành công!")
             st.rerun()
 
-# Lấy dữ liệu Lịch hẹn đã được Cache
+# Lấy dữ liệu Lịch hẹn đã Cache
 list_schedules = fetch_schedules()
 df_all = pd.DataFrame(list_schedules) if list_schedules else pd.DataFrame()
 
-# Tabs chính
+# Tabs giao diện
 tab1, tab2, tab3 = st.tabs([
     "📆 Bảng Lịch Theo Tuần",
     "📋 Danh Sách Chi Tiết & Quản Lý",
@@ -409,7 +413,7 @@ with tab3:
                         "position": staff_position,
                         "email": staff_email,
                         "phone": staff_phone,
-                        "created_at": firestore.SERVER_TIMESTAMP
+                        "created_at": datetime.now()
                     }
                     db.collection("staffs").add(staff_data)
                     st.cache_data.clear()
