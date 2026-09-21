@@ -1,4 +1,10 @@
 import streamlit as st
+
+# ---------------------------------------------------------
+# Cấu hình Trang Streamlit (PHẢI ĐẶT DÒNG ĐẦU TIÊN)
+# ---------------------------------------------------------
+st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout="wide", page_icon="📅")
+
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, time, timedelta
@@ -12,33 +18,39 @@ import atexit
 # ---------------------------------------------------------
 # Cấu hình Email SMTP
 # ---------------------------------------------------------
-
-# Lấy thông tin từ secrets nếu có, nếu không thì lấy giá trị mặc định
-SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "traitay95@gmail.com")
-SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "wtgm paga vpze bfzm")
+SENDER_EMAIL = st.secrets.get("SENDER_EMAIL", "")
+SENDER_PASSWORD = st.secrets.get("SENDER_PASSWORD", "")
 
 # ---------------------------------------------------------
 # 1. Khởi tạo kết nối Firebase
 # ---------------------------------------------------------
 if not firebase_admin._apps:
-    try:
-        if "textkey" in st.secrets:
-            key_dict = dict(st.secrets["textkey"])
-            cred = credentials.Certificate(key_dict)
-        else:
+    cred = None
+    # Lần lượt kiểm tra các khóa trong Streamlit Secrets
+    if "gcp_service_account" in st.secrets:
+        key_dict = dict(st.secrets["gcp_service_account"])
+        cred = credentials.Certificate(key_dict)
+    elif "textkey" in st.secrets:
+        key_dict = dict(st.secrets["textkey"])
+        cred = credentials.Certificate(key_dict)
+    else:
+        try:
             cred = credentials.Certificate("firebase_key.json")
-    except Exception:
-        cred = credentials.Certificate("firebase_key.json")
+        except Exception as e:
+            st.error("Không tìm thấy tệp hoặc cấu hình khóa Firebase bí mật!")
 
-    firebase_admin.initialize_app(cred)
+    if cred:
+        firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-
 
 # ---------------------------------------------------------
 # 2. Hàm gửi Email qua SMTP
 # ---------------------------------------------------------
 def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        print("Chưa cấu hình SENDER_EMAIL hoặc SENDER_PASSWORD trong Secrets.")
+        return False
     try:
         msg = MIMEMultipart()
         msg['From'] = f"Hệ thống Lịch PKH <{SENDER_EMAIL}>"
@@ -46,17 +58,17 @@ def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
         msg['Subject'] = f"⏰ [NHẮC LỊCH] Công việc sắp diễn ra trong 2 tiếng: {task_title}"
 
         body = f"""
-        Chào {staff_name},
+Chào {staff_name},
 
-        Hệ thống xin thông báo bạn có lịch công tác/cuộc họp sắp diễn ra trong 2 tiếng tới:
+Hệ thống xin thông báo bạn có lịch công tác/cuộc họp sắp diễn ra trong 2 tiếng tới:
 
-        📌 Nội dung: {task_title}
-        🕒 Thời gian: {task_time_str}
-        📝 Ghi chú / Địa điểm: {note if note else 'Không có'}
+📌 Nội dung: {task_title}
+🕒 Thời gian: {task_time_str}
+📝 Ghi chú / Địa điểm: {note if note else 'Không có'}
 
-        Vui lòng chuẩn bị và tham gia đúng giờ!
-        ---
-        Phòng Kế Hoạch
+Vui lòng chuẩn bị và tham gia đúng giờ!
+---
+Phòng Kế Hoạch
         """
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
@@ -70,7 +82,6 @@ def send_email_reminder(to_email, staff_name, task_title, task_time_str, note):
         print(f"Lỗi gửi email: {e}")
         return False
 
-
 # ---------------------------------------------------------
 # 3. Task ngầm: Quét Firestore và gửi mail trước 2 tiếng
 # ---------------------------------------------------------
@@ -78,41 +89,46 @@ def check_and_send_reminders():
     now = datetime.now()
     two_hours_later = now + timedelta(hours=2)
 
-    schedules_ref = db.collection("schedules").where("email_sent", "==", False)
-    docs = schedules_ref.stream()
+    try:
+        schedules_ref = db.collection("schedules").where("email_sent", "==", False)
+        docs = schedules_ref.stream()
 
-    staffs_stream = db.collection("staffs").stream()
-    staffs_dict = {}
-    for s in staffs_stream:
-        sd = s.to_dict()
-        if "name" in sd and "email" in sd:
-            staffs_dict[sd["name"]] = sd["email"]
+        staffs_stream = db.collection("staffs").stream()
+        staffs_dict = {}
+        for s in staffs_stream:
+            sd = s.to_dict()
+            if "name" in sd and "email" in sd:
+                staffs_dict[sd["name"]] = sd["email"]
 
-    for doc in docs:
-        data = doc.to_dict()
-        try:
-            task_datetime_str = f"{data['ngay']} {data['gio_bat_dau']}"
-            task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M")
+        for doc in docs:
+            data = doc.to_dict()
+            try:
+                if not data.get('ngay') or not data.get('gio_bat_dau'):
+                    continue
+                
+                task_datetime_str = f"{data['ngay']} {data['gio_bat_dau']}"
+                task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M")
 
-            if now <= task_datetime <= two_hours_later:
-                staff_name = data.get("nguoi_phu_trach")
-                user_email = staffs_dict.get(staff_name)
+                if now <= task_datetime <= two_hours_later:
+                    staff_name = data.get("nguoi_phu_trach")
+                    user_email = staffs_dict.get(staff_name)
 
-                if user_email:
-                    success = send_email_reminder(
-                        to_email=user_email,
-                        staff_name=staff_name,
-                        task_title=data.get("title"),
-                        task_time_str=f"{data['gio_bat_dau']} ngày {data['ngay']}",
-                        note=data.get("ghi_chu", "")
-                    )
+                    if user_email:
+                        success = send_email_reminder(
+                            to_email=user_email,
+                            staff_name=staff_name,
+                            task_title=data.get("title", "Công việc"),
+                            task_time_str=f"{data['gio_bat_dau']} ngày {data['ngay']}",
+                            note=data.get("ghi_chu", "")
+                        )
 
-                    if success:
-                        db.collection("schedules").document(doc.id).update({"email_sent": True})
-                        print(f"Đã gửi email nhắc lịch cho {staff_name} ({user_email})")
-        except Exception as e:
-            print(f"Lỗi xử lý lịch {doc.id}: {e}")
-
+                        if success:
+                            db.collection("schedules").document(doc.id).update({"email_sent": True})
+                            print(f"Đã gửi email nhắc lịch cho {staff_name} ({user_email})")
+            except Exception as e:
+                print(f"Lỗi xử lý lịch {doc.id}: {e}")
+    except Exception as ex:
+        print(f"Lỗi khi thực hiện quét dữ liệu nhắc lịch: {ex}")
 
 # ---------------------------------------------------------
 # 4. Khởi chạy Background Scheduler
@@ -124,14 +140,11 @@ def start_scheduler():
     scheduler.start()
     return scheduler
 
-
 scheduler = start_scheduler()
-atexit.register(lambda: scheduler.shutdown())
+atexit.register(lambda: scheduler.shutdown(wait=False))
 
-st.set_page_config(page_title="Hệ Thống Lịch Phòng Kế Hoạch", layout="wide", page_icon="📅")
-
+# Tự động dọn dẹp các lịch từ năm cũ
 current_year = datetime.now().year
-
 
 @st.cache_resource(ttl=3600)
 def auto_delete_old_year_schedules():
@@ -142,14 +155,16 @@ def auto_delete_old_year_schedules():
         for doc in docs:
             data = doc.to_dict()
             if "ngay" in data and data["ngay"]:
-                task_year = int(data["ngay"].split("-")[0])
-                if task_year < current_year:
-                    db.collection("schedules").document(doc.id).delete()
-                    deleted_count += 1
+                try:
+                    task_year = int(data["ngay"].split("-")[0])
+                    if task_year < current_year:
+                        db.collection("schedules").document(doc.id).delete()
+                        deleted_count += 1
+                except ValueError:
+                    continue
         return deleted_count
-    except Exception as e:
+    except Exception:
         return 0
-
 
 auto_delete_old_year_schedules()
 
@@ -163,7 +178,6 @@ staff_docs = staffs_ref.stream()
 list_staffs = [doc.to_dict() for doc in staff_docs]
 staff_names = [s["name"] for s in list_staffs if "name" in s]
 
-
 # ---------------------------------------------------------
 # 6. POP-UP CHỈNH SỬA LỊCH HẸN (ST.DIALOG)
 # ---------------------------------------------------------
@@ -173,8 +187,7 @@ def edit_schedule_dialog(task, staff_options):
         edit_title = st.text_input("Nội dung công việc / Cuộc họp (*)", value=task.get("title", ""))
 
         if staff_options:
-            default_index = staff_options.index(task.get("nguoi_phu_trach")) if task.get(
-                "nguoi_phu_trach") in staff_options else 0
+            default_index = staff_options.index(task.get("nguoi_phu_trach")) if task.get("nguoi_phu_trach") in staff_options else 0
             edit_nguoi_phu_trach = st.selectbox("Người phụ trách (*)", options=staff_options, index=default_index)
         else:
             edit_nguoi_phu_trach = st.text_input("Người phụ trách (*)", value=task.get("nguoi_phu_trach", ""))
@@ -225,7 +238,6 @@ def edit_schedule_dialog(task, staff_options):
                 st.success("Đã cập nhật lịch thành công!")
                 st.rerun()
 
-
 # ---------------------------------------------------------
 # 7. Thanh bên (Sidebar) - Form Đăng ký
 # ---------------------------------------------------------
@@ -237,8 +249,7 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
     if staff_names:
         nguoi_phu_trach = st.selectbox("Người phụ trách (*)", options=staff_names)
     else:
-        nguoi_phu_trach = st.text_input("Người phụ trách (*)",
-                                        help="Chưa có danh sách, nhập tay hoặc sang tab Cài đặt để thêm")
+        nguoi_phu_trach = st.text_input("Người phụ trách (*)", help="Chưa có danh sách, nhập tay hoặc sang tab Cài đặt để thêm")
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -297,7 +308,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # =========================================================
-# TAB 1: BẢNG LỊCH THEO TUẦN (ĐƠN GIẢN - KHÔNG TÔ MÀU CANH BÁO)
+# TAB 1: BẢNG LỊCH THEO TUẦN
 # =========================================================
 with tab1:
     col_w1, col_w2 = st.columns([1, 2])
@@ -310,8 +321,7 @@ with tab1:
 
         week_num = start_of_week.isocalendar()[1]
 
-        st.info(
-            f"📌 **Tuần {week_num} (Năm {start_of_week.year}):** Từ **{start_of_week.strftime('%d/%m/%Y')}** đến **{end_of_week.strftime('%d/%m/%Y')}**")
+        st.info(f"📌 **Tuần {week_num} (Năm {start_of_week.year}):** Từ **{start_of_week.strftime('%d/%m/%Y')}** đến **{end_of_week.strftime('%d/%m/%Y')}**")
 
     week_days = [start_of_week + timedelta(days=i) for i in range(7)]
     day_names = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"]
@@ -334,15 +344,14 @@ with tab1:
 
                 if not day_tasks.empty:
                     for _, task in day_tasks.iterrows():
-                        badge = "🔴" if task['trang_thai'] == 'Hủy' else (
-                            "🟢" if task['trang_thai'] == 'Chính thức' else "🟡")
+                        badge = "🔴" if task.get('trang_thai') == 'Hủy' else (
+                            "🟢" if task.get('trang_thai') == 'Chính thức' else "🟡")
 
-                        # Khung thẻ lịch tiêu chuẩn không chứa hiệu ứng tô màu
                         with st.container(border=True):
-                            st.markdown(f"⏰ **{task['gio_bat_dau']} - {task['gio_ket_thuc']}**")
-                            st.markdown(f"**{task['title']}**")
-                            st.caption(f"👤 {task['nguoi_phu_trach']}")
-                            st.caption(f"Trạng thái: {badge} {task['trang_thai']}")
+                            st.markdown(f"⏰ **{task.get('gio_bat_dau', '')} - {task.get('gio_ket_thuc', '')}**")
+                            st.markdown(f"**{task.get('title', '')}**")
+                            st.caption(f"👤 {task.get('nguoi_phu_trach', '')}")
+                            st.caption(f"Trạng thái: {badge} {task.get('trang_thai', '')}")
 
                             if task.get('ghi_chu'):
                                 st.caption(f"📌 {task['ghi_chu']}")
@@ -358,11 +367,16 @@ with tab1:
 # TAB 2: DANH SÁCH CHI TIẾT
 # =========================================================
 with tab2:
-    if not df_all.empty:
+    if not df_all.empty and "ngay" in df_all.columns:
         df_sorted = df_all.sort_values(by=["ngay", "gio_bat_dau"], ascending=[False, False]).copy()
 
-        df_display = df_sorted[
-            ["ngay", "gio_bat_dau", "gio_ket_thuc", "title", "nguoi_phu_trach", "trang_thai", "ghi_chu"]].copy()
+        # Đảm bảo các cột tồn tại trước khi lọc
+        req_cols = ["ngay", "gio_bat_dau", "gio_ket_thuc", "title", "nguoi_phu_trach", "trang_thai", "ghi_chu"]
+        for col_name in req_cols:
+            if col_name not in df_sorted.columns:
+                df_sorted[col_name] = ""
+
+        df_display = df_sorted[req_cols].copy()
         df_display.columns = ["Ngày", "Từ", "Đến", "Tên công việc", "Phụ trách", "Trạng thái", "Ghi chú"]
 
         def colorize_rows(row):
@@ -396,15 +410,16 @@ with tab2:
             selected_task = st.selectbox(
                 "Chọn lịch cần xóa:",
                 options=sorted_schedules,
-                format_func=lambda x: f"[{x['ngay']} | {x['gio_bat_dau']}] {x['title']} - ({x['nguoi_phu_trach']})"
+                format_func=lambda x: f"[{x.get('ngay', '')} | {x.get('gio_bat_dau', '')}] {x.get('title', '')} - ({x.get('nguoi_phu_trach', '')})"
             )
         with col_act:
             st.write(" ")
             st.write(" ")
             if st.button("🗑️ Xóa lịch hẹn", type="primary"):
-                db.collection("schedules").document(selected_task["id"]).delete()
-                st.toast(f"Đã xóa thành công lịch: {selected_task['title']}")
-                st.rerun()
+                if selected_task:
+                    db.collection("schedules").document(selected_task["id"]).delete()
+                    st.toast(f"Đã xóa thành công lịch: {selected_task.get('title', '')}")
+                    st.rerun()
     else:
         st.info("Chưa có dữ liệu lịch hẹn.")
 
@@ -453,6 +468,12 @@ with tab3:
 
         if staffs_full:
             df_staffs = pd.DataFrame(staffs_full)
+            
+            # Đảm bảo đủ các cột hiển thị
+            for col_name in ["name", "position", "email", "phone"]:
+                if col_name not in df_staffs.columns:
+                    df_staffs[col_name] = ""
+
             df_staffs_display = df_staffs[["name", "position", "email", "phone"]].copy()
             df_staffs_display.columns = ["Họ và Tên", "Chức vụ", "Email", "Số điện thoại"]
 
@@ -464,14 +485,15 @@ with tab3:
                 selected_staff_del = st.selectbox(
                     "Chọn người phụ trách cần xóa:",
                     options=staffs_full,
-                    format_func=lambda x: f"{x['name']} ({x.get('position', 'N/A')})"
+                    format_func=lambda x: f"{x.get('name', '')} ({x.get('position', 'N/A')})"
                 )
             with col_b_del:
                 st.write(" ")
                 st.write(" ")
                 if st.button("🗑️ Xóa người phụ trách", type="primary"):
-                    db.collection("staffs").document(selected_staff_del["id"]).delete()
-                    st.toast(f"Đã xóa: {selected_staff_del['name']}")
-                    st.rerun()
+                    if selected_staff_del:
+                        db.collection("staffs").document(selected_staff_del["id"]).delete()
+                        st.toast(f"Đã xóa: {selected_staff_del.get('name', '')}")
+                        st.rerun()
         else:
             st.info("Chưa có thông tin người phụ trách nào.")
