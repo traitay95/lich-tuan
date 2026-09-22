@@ -64,5 +64,16 @@
     "ghi_chu": "Mỹ Thuận",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790039308",
+    "title": "Tập huấn Lao",
+    "nguoi_phu_trach": "Nguyễn Thị Kim Tươi",
+    "ngay": "2026-10-22",
+    "gio_bat_dau": "07:00",
+    "gio_ket_thuc": "17:00",
+    "ghi_chu": "BS Thanh, BS Diễm, KTV Liêm, KTV Yến Phương",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   }
 ]
