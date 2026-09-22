@@ -77,12 +77,12 @@ def save_data_to_github(filename, data, sha=None, commit_msg="Update data"):
     return False
 
 # =========================================================
-# 🧹 HÀM TỰ ĐỘNG XÓA LỊCH THÁNG TRƯỚC
+# 🧹 HÀM TỰ ĐỘNG XÓA LỊCH CÁC NĂM CŨ (SANG NĂM MỚI MỚI XÓA)
 # =========================================================
 def auto_clean_old_schedules(schedules, sha):
-    """Tự động loại bỏ các lịch từ tháng trước trở về trước."""
-    now = datetime.now(VN_TZ).replace(tzinfo=None)
-    first_day_of_current_month = datetime(now.year, now.month, 1).date()
+    """Tự động loại bỏ các lịch thuộc các năm trước năm hiện tại."""
+    now = datetime.now(VN_TZ)
+    current_year = now.year
     
     cleaned_schedules = []
     has_changed = False
@@ -90,7 +90,8 @@ def auto_clean_old_schedules(schedules, sha):
     for task in schedules:
         try:
             task_date = datetime.strptime(task["ngay"], "%Y-%m-%d").date()
-            if task_date >= first_day_of_current_month:
+            # Giữ lại nếu lịch thuộc năm hiện tại hoặc trong tương lai
+            if task_date.year >= current_year:
                 cleaned_schedules.append(task)
             else:
                 has_changed = True
@@ -98,7 +99,7 @@ def auto_clean_old_schedules(schedules, sha):
             cleaned_schedules.append(task)
 
     if has_changed:
-        save_data_to_github("schedules.json", cleaned_schedules, sha, "Auto clean old schedules from last month")
+        save_data_to_github("schedules.json", cleaned_schedules, sha, f"Auto clean schedules older than year {current_year}")
         return cleaned_schedules
     return schedules
 
@@ -307,8 +308,33 @@ with tab2:
     st.markdown("**Chú thích cảnh báo:** 🔴 *Còn < 2 tiếng* | 🟡 *Còn < 24 tiếng*")
 
     if schedules_data:
-        # Sắp xếp lịch mới nhất lên đầu
-        sorted_schedules = sorted(schedules_data, key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), reverse=True)
+        today_str = datetime.now(VN_TZ).date().strftime("%Y-%m-%d")
+
+        # Phân loại lịch thành 2 nhóm: Hiện tại/Tương lai và Quá quá khứ
+        upcoming_schedules = []
+        past_schedules = []
+
+        for task in schedules_data:
+            if task.get("ngay", "") >= today_str:
+                upcoming_schedules.append(task)
+            else:
+                past_schedules.append(task)
+
+        # 1. Hôm nay & Tương lai: Sắp xếp tăng dần (Gần hiện tại -> Tương lai xa)
+        upcoming_schedules = sorted(
+            upcoming_schedules, 
+            key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", ""))
+        )
+
+        # 2. Quá khứ: Sắp xếp giảm dần (Lịch gần hôm nay nhất -> Quá khứ xa)
+        past_schedules = sorted(
+            past_schedules, 
+            key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), 
+            reverse=True
+        )
+
+        # Hợp nhất 2 danh sách theo thứ tự ưu tiên
+        sorted_schedules = upcoming_schedules + past_schedules
 
         # Tiêu đề bảng
         h1, h2, h3, h4, h5, h6, h7 = st.columns([1.2, 1.2, 2.5, 1.5, 1.2, 1.8, 1.2])
