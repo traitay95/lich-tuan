@@ -53,5 +53,16 @@
     "ghi_chu": "Xã Mỹ Thuận",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790039088",
+    "title": "KSK",
+    "nguoi_phu_trach": "Nguyễn Thị Kim Tươi",
+    "ngay": "2026-09-22",
+    "gio_bat_dau": "07:00",
+    "gio_ket_thuc": "09:00",
+    "ghi_chu": "Mỹ Thuận",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   }
 ]
