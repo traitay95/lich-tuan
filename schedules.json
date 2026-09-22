@@ -97,5 +97,16 @@
     "ghi_chu": "khoa YHCT đã gửi bản chỉnh sửa",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790060012",
+    "title": "đăng tải thực hành",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-10-01",
+    "gio_bat_dau": "07:00",
+    "gio_ket_thuc": "17:00",
+    "ghi_chu": "đăng tải DD Kim Phượng",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   }
 ]
