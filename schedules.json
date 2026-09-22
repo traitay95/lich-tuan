@@ -9,5 +9,16 @@
     "ghi_chu": "hạn 23/09/2026",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790038181",
+    "title": "KSK",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-09-23",
+    "gio_bat_dau": "07:00",
+    "gio_ket_thuc": "09:00",
+    "ghi_chu": "",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   }
 ]
