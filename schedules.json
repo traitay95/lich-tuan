@@ -108,5 +108,16 @@
     "ghi_chu": "đăng tải DD Kim Phượng",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790061177",
+    "title": "123",
+    "nguoi_phu_trach": "Nguyễn Minh Nhân",
+    "ngay": "2026-08-12",
+    "gio_bat_dau": "08:00",
+    "gio_ket_thuc": "09:00",
+    "ghi_chu": "123",
+    "trang_thai": "Hoàn thành",
+    "email_sent": false
   }
 ]
