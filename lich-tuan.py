@@ -139,6 +139,37 @@ def get_task_highlight_status(task_date_str, task_time_str, task_status=""):
     return None, None, None
 
 # =========================================================
+# 📐 HÀM SẮP XẾP LỊCH THEO LOGIC CHUẨN
+# =========================================================
+def get_sorted_schedules(tasks_list):
+    """Phân loại và sắp xếp lịch hẹn theo quy tắc: Tương lai tăng dần, Quá khứ giảm dần."""
+    today_str = datetime.now(VN_TZ).date().strftime("%Y-%m-%d")
+
+    upcoming_schedules = []
+    past_schedules = []
+
+    for task in tasks_list:
+        if task.get("ngay", "") >= today_str:
+            upcoming_schedules.append(task)
+        else:
+            past_schedules.append(task)
+
+    # 1. Hôm nay & Tương lai: Sắp xếp tăng dần (Gần hiện tại -> Tương lai xa)
+    upcoming_schedules = sorted(
+        upcoming_schedules, 
+        key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", ""))
+    )
+
+    # 2. Quá khứ: Sắp xếp giảm dần (Lịch gần hôm nay nhất -> Quá khứ xa)
+    past_schedules = sorted(
+        past_schedules, 
+        key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), 
+        reverse=True
+    )
+
+    return upcoming_schedules + past_schedules
+
+# =========================================================
 # 🖥️ GIAO DIỆN STREAMLIT
 # =========================================================
 st.set_page_config(page_title="Lịch Làm Việc Phòng Kế Hoạch", layout="wide", page_icon="📅")
@@ -245,8 +276,14 @@ with st.sidebar.form("form_dangkylich", clear_on_submit=True):
                 st.rerun()
 
 # --- TAB GIAO DIỆN CHÍNH ---
-tab1, tab2, tab3 = st.tabs(["📆 Lịch Theo Tuần", "📋 Danh Sách Chi Tiết", "⚙️ Cài Đặt Nhân Sự"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📆 Lịch Theo Tuần", 
+    "📋 Danh Sách Chi Tiết", 
+    "✅ Danh Sách Hoàn Thành", 
+    "⚙️ Cài Đặt Nhân Sự"
+])
 
+# --- TAB 1: LỊCH THEO TUẦN ---
 with tab1:
     col_w1, col_w2 = st.columns([1, 2])
     with col_w1:
@@ -303,38 +340,16 @@ with tab1:
             else:
                 st.caption("_Không có lịch_")
 
+# --- TAB 2: DANH SÁCH CHI TIẾT (LỌC BỎ HOÀN THÀNH) ---
 with tab2:
-    st.subheader("📋 Danh Sách Lịch Chi Tiết")
+    st.subheader("📋 Danh Sách Lịch Chi Tiết (Chưa Hoàn Thành)")
     st.markdown("**Chú thích cảnh báo:** 🔴 *Còn < 2 tiếng* | 🟡 *Còn < 24 tiếng*")
 
-    if schedules_data:
-        today_str = datetime.now(VN_TZ).date().strftime("%Y-%m-%d")
+    # Lọc bỏ các công việc đã Hoàn thành
+    active_schedules = [t for t in schedules_data if t.get("trang_thai") != "Hoàn thành"]
 
-        # Phân loại lịch thành 2 nhóm: Hiện tại/Tương lai và Quá quá khứ
-        upcoming_schedules = []
-        past_schedules = []
-
-        for task in schedules_data:
-            if task.get("ngay", "") >= today_str:
-                upcoming_schedules.append(task)
-            else:
-                past_schedules.append(task)
-
-        # 1. Hôm nay & Tương lai: Sắp xếp tăng dần (Gần hiện tại -> Tương lai xa)
-        upcoming_schedules = sorted(
-            upcoming_schedules, 
-            key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", ""))
-        )
-
-        # 2. Quá khứ: Sắp xếp giảm dần (Lịch gần hôm nay nhất -> Quá khứ xa)
-        past_schedules = sorted(
-            past_schedules, 
-            key=lambda x: (x.get("ngay", ""), x.get("gio_bat_dau", "")), 
-            reverse=True
-        )
-
-        # Hợp nhất 2 danh sách theo thứ tự ưu tiên
-        sorted_schedules = upcoming_schedules + past_schedules
+    if active_schedules:
+        sorted_schedules = get_sorted_schedules(active_schedules)
 
         # Tiêu đề bảng
         h1, h2, h3, h4, h5, h6, h7 = st.columns([1.2, 1.2, 2.5, 1.5, 1.2, 1.8, 1.2])
@@ -384,9 +399,80 @@ with tab2:
 
             st.markdown("<hr style='margin: 4px 0px; border: 0.5px solid #eee;'>", unsafe_allow_html=True)
     else:
-        st.info("Chưa có lịch hẹn nào.")
+        st.info("Không có lịch hẹn nào đang chờ xử lý.")
 
+# --- TAB 3: DANH SÁCH HOÀN THÀNH ---
 with tab3:
+    st.subheader("✅ Danh Sách Lịch Đã Hoàn Thành")
+
+    # Chỉ lọc lấy công việc đã Hoàn thành
+    completed_schedules = [t for t in schedules_data if t.get("trang_thai") == "Hoàn thành"]
+
+    if completed_schedules:
+        sorted_completed = get_sorted_schedules(completed_schedules)
+
+        # Tiêu đề bảng
+        h1, h2, h3, h4, h5, h6, h7 = st.columns([1.2, 1.2, 2.5, 1.5, 1.2, 1.8, 1.2])
+        h1.write("**Ngày**")
+        h2.write("**Thời gian**")
+        h3.write("**Nội dung**")
+        h4.write("**Phụ trách**")
+        h5.write("**Trạng thái**")
+        h6.write("**Ghi chú**")
+        h7.write("**Thao tác**")
+        st.divider()
+
+        for task in sorted_completed:
+            c1, c2, c3, c4, c5, c6, c7 = st.columns([1.2, 1.2, 2.5, 1.5, 1.2, 1.8, 1.2])
+
+            c1.write(task.get("ngay", ""))
+            c2.write(f"{task.get('gio_bat_dau', '')} - {task.get('gio_ket_thuc', '')}")
+            c3.write(task.get("title", ""))
+            c4.write(task.get("nguoi_phu_trach", ""))
+
+            # Làm sáng badge trạng thái hoàn thành với màu xanh lá
+            c5.markdown(
+                f"""
+                <span style="
+                    background-color: #D4EDDA; 
+                    color: #155724; 
+                    padding: 4px 8px; 
+                    border-radius: 12px; 
+                    font-weight: bold; 
+                    font-size: 13px;
+                    border: 1px solid #C3E6CB;
+                    display: inline-block;
+                ">
+                    ✓ Hoàn thành
+                </span>
+                """, 
+                unsafe_allow_html=True
+            )
+
+            c6.write(task.get("ghi_chu", ""))
+
+            # Cột Thao tác chứa Nút Sửa & Nút Xóa
+            with c7:
+                col_btn_edit, col_btn_del = st.columns(2)
+                
+                # NÚT SỬA
+                if col_btn_edit.button("✏️", key=f"btn_edit_t3_{task['id']}", help="Chỉnh sửa lịch hẹn"):
+                    task_real_idx = schedules_data.index(task)
+                    edit_schedule_dialog(task_real_idx, task, staff_names)
+
+                # NÚT XÓA
+                if col_btn_del.button("🗑️", key=f"btn_del_t3_{task['id']}", help="Xóa lịch hẹn"):
+                    updated_schedules = [t for t in schedules_data if t["id"] != task["id"]]
+                    if save_data_to_github("schedules.json", updated_schedules, schedules_sha, f"Delete task {task['id']}"):
+                        st.toast("Đã xóa lịch thành công!")
+                        st.rerun()
+
+            st.markdown("<hr style='margin: 4px 0px; border: 0.5px solid #eee;'>", unsafe_allow_html=True)
+    else:
+        st.info("Chưa có lịch hẹn nào hoàn thành.")
+
+# --- TAB 4: CÀI ĐẶT NHÂN SỰ ---
+with tab4:
     st.subheader("⚙️ Danh Sách Người Phụ Trách")
     col_a, col_l = st.columns([1, 2])
     with col_a:
