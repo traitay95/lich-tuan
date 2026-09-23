@@ -119,5 +119,16 @@
     "ghi_chu": "123",
     "trang_thai": "Hoàn thành",
     "email_sent": false
+  },
+  {
+    "id": "task_1790126716",
+    "title": "góp ý dự thảo tiêu chí phân loại PTTT và áp dụng thử nghiệm tiêu chí đối với kỹ thuật tại Phụ lục 02 Thông tư 23/2024/TT-BY",
+    "nguoi_phu_trach": "Nguyễn Thị Như Hảo",
+    "ngay": "2026-09-24",
+    "gio_bat_dau": "08:00",
+    "gio_ket_thuc": "14:00",
+    "ghi_chu": "",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   }
 ]
