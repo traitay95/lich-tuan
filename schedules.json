@@ -33,15 +33,15 @@
     "trang_thai": "Dự kiến"
   },
   {
-    "email_sent": false,
-    "ghi_chu": "xã Tân Lược",
+    "id": "task_1790038776",
+    "title": "KSK",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-09-24",
     "gio_bat_dau": "07:00",
     "gio_ket_thuc": "09:00",
-    "id": "task_1790038776",
-    "ngay": "2026-09-24",
-    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
-    "title": "KSK",
-    "trang_thai": "Dự kiến"
+    "ghi_chu": "xã Tân Lược",
+    "trang_thai": "Hoàn thành",
+    "email_sent": false
   },
   {
     "email_sent": false,
