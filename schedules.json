@@ -88,15 +88,15 @@
     "trang_thai": "Dự kiến"
   },
   {
-    "email_sent": false,
-    "ghi_chu": "khoa YHCT đã gửi bản chỉnh sửa",
+    "id": "task_1790040352",
+    "title": "Mời họp Thông qua QTKT",
+    "nguoi_phu_trach": "Nguyễn Thị Như Hảo",
+    "ngay": "2026-09-25",
     "gio_bat_dau": "08:00",
     "gio_ket_thuc": "09:00",
-    "id": "task_1790040352",
-    "ngay": "2026-10-01",
-    "nguoi_phu_trach": "Nguyễn Thị Như Hảo",
-    "title": "Thông qua QTKT",
-    "trang_thai": "Dự kiến"
+    "ghi_chu": "khoa YHCT đã gửi bản chỉnh sửa, xin c Thúy QĐ thành lập HĐ KHKT mới",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   },
   {
     "email_sent": false,
