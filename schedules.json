@@ -44,15 +44,15 @@
     "email_sent": false
   },
   {
-    "email_sent": false,
-    "ghi_chu": "Xã Mỹ Thuận",
+    "id": "task_1790038830",
+    "title": "KSK ",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-09-25",
     "gio_bat_dau": "07:00",
     "gio_ket_thuc": "09:00",
-    "id": "task_1790038830",
-    "ngay": "2026-09-25",
-    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
-    "title": "KSK ",
-    "trang_thai": "Dự kiến"
+    "ghi_chu": "Xã Mỹ Thuận",
+    "trang_thai": "Dự kiến",
+    "email_sent": false
   },
   {
     "id": "task_1790039088",
