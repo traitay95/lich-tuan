@@ -22,15 +22,15 @@
     "email_sent": false
   },
   {
-    "email_sent": false,
-    "ghi_chu": "BS Vàng đã gửi đầy đủ hồ sơ chưa kiểm tra",
+    "id": "task_1790038189",
+    "title": "GXN BS Vàng",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-09-22",
     "gio_bat_dau": "09:00",
     "gio_ket_thuc": "17:00",
-    "id": "task_1790038189",
-    "ngay": "2026-09-22",
-    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
-    "title": "GXN BS Vàng",
-    "trang_thai": "Dự kiến"
+    "ghi_chu": "BS Vàng đã gửi đầy đủ hồ sơ chưa kiểm tra",
+    "trang_thai": "Hoàn thành",
+    "email_sent": false
   },
   {
     "id": "task_1790038776",
