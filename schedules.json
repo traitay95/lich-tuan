@@ -152,5 +152,16 @@
     "ghi_chu": "",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1790752195",
+    "title": "Báo cáo, nghiệm thu QTKT năm 2026",
+    "nguoi_phu_trach": "Nguyễn Thị Như Hảo",
+    "ngay": "2026-09-01",
+    "gio_bat_dau": "14:00",
+    "gio_ket_thuc": "17:00",
+    "ghi_chu": "đã gửi nhóm zalo\" Báo cáo, nghiệm thu QTKT năm 2026\"\n",
+    "trang_thai": "Chính thức",
+    "email_sent": false
   }
 ]
