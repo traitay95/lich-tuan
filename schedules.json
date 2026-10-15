@@ -77,15 +77,15 @@
     "email_sent": false
   },
   {
-    "email_sent": false,
-    "ghi_chu": "Bổ sung Trang thiết bị",
+    "id": "task_1790039457",
+    "title": "Hồ sơ công bố ma túy",
+    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
+    "ngay": "2026-09-25",
     "gio_bat_dau": "07:00",
     "gio_ket_thuc": "17:00",
-    "id": "task_1790039457",
-    "ngay": "2026-09-25",
-    "nguoi_phu_trach": "Lâm Thị Mỹ Diện",
-    "title": "Hồ sơ công bố ma túy",
-    "trang_thai": "Dự kiến"
+    "ghi_chu": "Bổ sung Trang thiết bị",
+    "trang_thai": "Hoàn thành",
+    "email_sent": false
   },
   {
     "email_sent": false,
