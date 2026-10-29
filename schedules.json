@@ -207,5 +207,16 @@
     "ghi_chu": "",
     "trang_thai": "Dự kiến",
     "email_sent": false
+  },
+  {
+    "id": "task_1793234824",
+    "title": "Trích Lục HSBA",
+    "nguoi_phu_trach": "Nguyễn Minh Nhân",
+    "ngay": "2026-10-30",
+    "gio_bat_dau": "07:00",
+    "gio_ket_thuc": "09:00",
+    "ghi_chu": "",
+    "trang_thai": "Chính thức",
+    "email_sent": false
   }
 ]
